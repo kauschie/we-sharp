@@ -12,6 +12,7 @@ msgpack==1.0.8
 numba==0.60.0
 numpy==2.0.2
 packaging==24.1
+pip-autoremove==0.10.0
 platformdirs==4.2.2
 pooch==1.8.2
 pycparser==2.22
