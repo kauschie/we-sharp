@@ -13,3 +13,4 @@ mdx_extra/
 *.mp3
 *.wav
 config.ini
+*.log
