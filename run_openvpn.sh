@@ -8,4 +8,4 @@ fi
 
 # Start a new tmux session and run OpenVPN inside it
 # The session will be named "openvpn_session"
-tmux new-session -d -s openvpn_session "sudo /usr/sbin/openvpn --config $1"
+tmux new-session -d -s openvpn_session "sudo /usr/sbin/openvpn --config $1 && exit"
