@@ -2,17 +2,14 @@
 Example Usage:
 
 ## CUDA (GPU) Enabled
-python demucs_audio_processor.py your_audio_file.wav --device cuda  
+python demucs_test.py your_audio_file.wav --device cuda  
 
 ## CPU Enabled
-python demucs_audio_processor.py your_audio_file.wav --device cpu
+python demucs_test.py your_audio_file.wav --device cpu
 
 ## without specifying
 ## this will prompt during execution
-python demucs_audio_processor.py your_audio_file.wav
-
-
-
+python demucs_test.py your_audio_file.wav
 """
 
 import torchaudio
@@ -68,6 +65,7 @@ def load_audio(file_path):
     - Converts mono to stereo if needed.
     - Resamples to the target sample rate if needed.
     """
+    
     # Check if the file exists
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f"Error: The file '{file_path}' does not exist.")
@@ -120,40 +118,47 @@ def save_tracks(sources, sr, output_format, output_prefix="output"):
     bass, vocals, other, drums = sources[1], sources[3], sources[2], sources[0]
 
     # Save the original separated tracks
-    save_audio(vocals.squeeze(0), sr, f"{output_prefix}_vocals.{output_format}", output_format)
+    # save_audio(vocals.squeeze(0), sr, f"{output_prefix}_vocals.{output_format}", output_format)
     save_audio(bass.squeeze(0), sr, f"{output_prefix}_bass.{output_format}", output_format)
     save_audio(other.squeeze(0), sr, f"{output_prefix}_other.{output_format}", output_format)
     save_audio(drums.squeeze(0), sr, f"{output_prefix}_drums.{output_format}", output_format)
 
     # Scale down drums by 30% but do not normalize them
-    scaled_drums = drums.squeeze(0) * 0.7
-    save_audio(scaled_drums, sr, f"{output_prefix}_scaled_drums.{output_format}", output_format)
+    # scaled_drums = drums.squeeze(0) * 0.7
+    # save_audio(scaled_drums, sr, f"{output_prefix}_scaled_drums.{output_format}", output_format)
 
     # Normalize and adjust volume of each track
-    max_rms = max(rms(vocals.squeeze(0)), rms(bass.squeeze(0)), rms(other.squeeze(0)), rms(drums.squeeze(0)))
+    # max_rms = max(rms(vocals.squeeze(0)), rms(bass.squeeze(0)), rms(other.squeeze(0)), rms(drums.squeeze(0)))
 
-    normalized_vocals = normalize_volume(vocals.squeeze(0), max_rms)
-    normalized_bass = normalize_volume(bass.squeeze(0), max_rms)
-    normalized_other = normalize_volume(other.squeeze(0), max_rms)
-    normalized_drums = normalize_volume(drums.squeeze(0), max_rms)
+    # normalized_vocals = normalize_volume(vocals.squeeze(0), max_rms)
+    # normalized_bass = normalize_volume(bass.squeeze(0), max_rms)
+    # normalized_other = normalize_volume(other.squeeze(0), max_rms)
+    # normalized_drums = normalize_volume(drums.squeeze(0), max_rms)
 
-    overall_scaling_factor = 0.7
-    normalized_vocals *= overall_scaling_factor
-    normalized_bass *= overall_scaling_factor
-    normalized_other *= overall_scaling_factor
-    normalized_drums *= overall_scaling_factor
+    # overall_scaling_factor = 0.7
+    # normalized_vocals *= overall_scaling_factor
+    # normalized_bass *= overall_scaling_factor
+    # normalized_other *= overall_scaling_factor
+    # normalized_drums *= overall_scaling_factor
 
     # Save normalized tracks
-    save_audio(normalized_vocals, sr, f"{output_prefix}_normalized_vocals.{output_format}", output_format)
-    save_audio(normalized_bass, sr, f"{output_prefix}_normalized_bass.{output_format}", output_format)
-    save_audio(normalized_other, sr, f"{output_prefix}_normalized_other.{output_format}", output_format)
-    save_audio(normalized_drums, sr, f"{output_prefix}_normalized_drums.{output_format}", output_format)
+    # save_audio(normalized_vocals, sr, f"{output_prefix}_normalized_vocals.{output_format}", output_format)
+    # save_audio(normalized_bass, sr, f"{output_prefix}_normalized_bass.{output_format}", output_format)
+    # save_audio(normalized_other, sr, f"{output_prefix}_normalized_other.{output_format}", output_format)
+    # save_audio(normalized_drums, sr, f"{output_prefix}_normalized_drums.{output_format}", output_format)
 
     # Combine normalized and unnormalized instrumentals and save
-    combined_normalized_instrumental = normalized_drums + normalized_bass + normalized_other
     combined_instrumental = drums + bass + other
-    save_audio(combined_normalized_instrumental.squeeze(0), sr, f"{output_prefix}_combined_normalized_instrumental.{output_format}", output_format)
+    # combined_vocal_drum = vocals + scaled_drums
+    # combined_other_base_scaled_drum = other + bass + scaled_drums
+    # combined_other_base = other + bass
+
+    # save_audio(combined_normalized_instrumental.squeeze(0), sr, f"{output_prefix}_combined_normalized_instrumental.{output_format}", output_format)
     save_audio(combined_instrumental.squeeze(0), sr, f"{output_prefix}_combined_instrumental.{output_format}", output_format)
+    # save_audio(combined_vocal_drum.squeeze(0), sr, f"{output_prefix}_combined_vocal_drum.{output_format}", output_format)
+    # save_audio(combined_other_base_scaled_drum.squeeze(0), sr, f"{output_prefix}_combined_other_base_scaled_drum.{output_format}", output_format)
+    # save_audio(combined_other_base.squeeze(0), sr, f"{output_prefix}_combined_other_base.{output_format}", output_format)
+    # save_audio(other.squeeze(0), sr, f"{output_prefix}_other.{output_format}", output_format)
 
     print("Finished saving test tracks")
 
