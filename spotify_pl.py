@@ -6,6 +6,11 @@ import logging
 import time
 from fuzzywuzzy import fuzz  # Import fuzzy matching library
 
+
+# Spotify API endpoints
+AUTH_URL = 'https://accounts.spotify.com/api/token'
+API_URL = 'https://api.spotify.com/v1'
+
 # Set up logging to separate info and warnings/errors
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -169,15 +174,6 @@ def search_and_add_tracks_to_playlist(token, csv_file_path, playlist_id):
 # Main program flow remains the same, where you authenticate and pass token, etc.
 
 
-# Replace these with your actual values
-CLIENT_ID = 'e6fa33c5d4884f39afd576b7deb744d2'
-CLIENT_SECRET = '737b5b230f57450aaa6f45b000906840'
-REDIRECT_URI = 'http://localhost:888/callback'  # Your redirect URI
-SCOPE = 'playlist-modify-public playlist-modify-private'  # Scopes needed for your app
-
-# Spotify API endpoints
-AUTH_URL = 'https://accounts.spotify.com/api/token'
-API_URL = 'https://api.spotify.com/v1'
 
 
 # Step 1: Generate the URL to authorize the user
@@ -276,8 +272,201 @@ def create_playlist(token, user_id, playlist_name):
         logging.error(f"Failed to create playlist: {response.status_code} - {response.json()}")
         return None
 
+# Function to get playlist ID by name (case-insensitive and handles pagination)
+def get_playlist_id_by_name(token, user_id, playlist_name):
+    url = f"{API_URL}/me/playlists"  # Changed to get all user playlists (owned and followed)
+    headers = {
+        'Authorization': f'Bearer {token}'
+    }
+    offset = 0
+    limit = 50  # Fetch playlists in batches of 50
+    while True:
+        params = {'limit': limit, 'offset': offset}
+        response = requests.get(url, headers=headers, params=params)
+        if response.status_code == 200:
+            playlists = response.json()['items']
+            for playlist in playlists:
+                if playlist['name'].strip().lower() == playlist_name.strip().lower():
+                    return playlist['id']  # Return the playlist ID if found
+            if len(playlists) < limit:
+                break  # If the number of playlists is less than the limit, we have fetched all playlists
+            offset += limit  # Move to the next batch
+        else:
+            logger.error(f"Failed to fetch playlists: {response.status_code} - {response.json()}")
+            break
+    return None
+
+# Function to filter valid Spotify track URIs (excluding local tracks)
+def filter_valid_uris(track_uris):
+    valid_uris = [uri for uri in track_uris if uri.startswith("spotify:track:")]
+    invalid_uris = [uri for uri in track_uris if not uri.startswith("spotify:track:")]
+    
+    if invalid_uris:
+        logging.warning(f"Skipping {len(invalid_uris)} invalid URIs: {invalid_uris}")
+    
+    return valid_uris
+
+# Function to retrieve all tracks from a playlist by playlist ID
+def get_all_tracks_from_playlist(token, playlist_id):
+    url = f"{API_URL}/playlists/{playlist_id}/tracks"
+    headers = {
+        'Authorization': f'Bearer {token}'
+    }
+    tracks = []
+    offset = 0
+    while True:
+        params = {'offset': offset, 'limit': 100}
+        response = requests.get(url, headers=headers, params=params)
+        if response.status_code == 200:
+            data = response.json()
+            tracks.extend(data['items'])
+            if len(data['items']) < 100:
+                break  # No more tracks to fetch
+            offset += 100
+        else:
+            logging.error(f"Failed to fetch tracks: {response.status_code} - {response.json()}")
+            break
+    return tracks
+
+# Function to retrieve the missing batch of songs (batch number is 1-based)
+# playlist_id : id of the larger playlist that the batch comes from
+def get_missing_batch(token, playlist_id, batch_number, batch_size=100):
+    # Fetch all tracks
+    logging.info("getting all tracks")
+    tracks = get_all_tracks_from_playlist(token, playlist_id)
+    if not tracks:
+        logging.error(f"No tracks found in playlist with ID {playlist_id}.")
+        return None
+    print("finished getting all tracks")
+    # Calculate the start and end indices for the batch
+    start_index = (batch_number - 1) * batch_size
+    end_index = start_index + batch_size
+
+    # Get the track URIs for the missing batch
+    batch_tracks = tracks[start_index:end_index]
+    track_uris = [track['track']['uri'] for track in batch_tracks]
+
+    logging.info(f"Retrieved {len(track_uris)} tracks for batch {batch_number}.")
+    return track_uris
+
+
+def create_new_playlist(token, user_id, playlist_name):
+    print("creating new playlist")
+    url = f"{API_URL}/users/{user_id}/playlists"
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json'
+    }
+    data = json.dumps({
+        'name': playlist_name,
+        'public': False  # Set to False for a private playlist
+    })
+    response = requests.post(url, headers=headers, data=data)
+    if response.status_code == 201:
+        id = response.json()['id']
+        print(f"created new playlist with id: {id}")
+        return id
+    else:
+        logging.error(f"Failed to create playlist: {response.status_code} - {response.json()}")
+        return None
+
+# Function to add tracks to a playlist (in batches of 100)
+def add_tracks_to_playlist(token, track_uris, playlist_id):
+    logging.info("adding tracks to playlist")
+
+    url = f"{API_URL}/playlists/{playlist_id}/tracks"
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json'
+    }
+
+    # Filter valid URIs (skip invalid ones like spotify:local)
+    track_uris = filter_valid_uris(track_uris)
+
+    # Split track URIs into batches of 100
+    for i in range(0, len(track_uris), 100):
+        batch = track_uris[i:i+100]
+        data = json.dumps({'uris': batch})
+        response = requests.post(url, headers=headers, data=data)
+        
+        if response.status_code == 201:
+            logging.info(f"Successfully added {len(batch)} tracks to playlist ID {playlist_id}")
+        else:
+            logging.error(f"Error adding tracks: {response.status_code} - {response.json()}")
+            # If the error is due to invalid base62 ID, add tracks one by one
+            if response.status_code == 400 and 'Invalid base62 id' in response.text:
+                logging.warning(f"Batch failed due to invalid ID, adding tracks individually.")
+                add_tracks_individually(token, batch, playlist_id)
+
+
+# Function to add tracks individually if a batch fails
+def add_tracks_individually(token, track_uris, playlist_id):
+    url = f"{API_URL}/playlists/{playlist_id}/tracks"
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json'
+    }
+
+    # Attempt to add each track individually
+    for uri in track_uris:
+        data = json.dumps({'uris': [uri]})
+        response = requests.post(url, headers=headers, data=data)
+        if response.status_code == 201:
+            logging.info(f"Successfully added track: {uri}")
+        else:
+            logging.error(f"Failed to add track {uri}: {response.status_code} - {response.json()}")
+
+
+
+# Function to divide the playlist into smaller bins of 100 and create new playlists
+def split_playlist_into_bins(token, user_id, playlist_id, original_playlist_name):
+    # Step 1: Retrieve all tracks from the original playlist
+    tracks = get_all_tracks_from_playlist(token, playlist_id)
+    if not tracks:
+        logging.error(f"No tracks found in playlist '{original_playlist_name}'.")
+        return
+
+    # Step 2: Extract track URIs
+    track_uris = [track['track']['uri'] for track in tracks]
+
+    # Step 3: Divide tracks into bins of 100 and create new playlists
+    total_bins = (len(track_uris) + 99) // 100  # Calculate total number of bins
+    for i in range(total_bins):
+        bin_track_uris = track_uris[i*100:(i+1)*100]
+        new_playlist_name = f"{original_playlist_name}{i+1}"  # Append index to playlist name
+
+        # Step 4: Create new playlist
+        new_playlist_id = create_new_playlist(token, user_id, new_playlist_name)
+        if new_playlist_id:
+            # Step 5: Add the tracks to the new playlist
+            add_tracks_to_playlist(token, bin_track_uris, new_playlist_id)
+            logging.info(f"Created and populated playlist '{new_playlist_name}' with {len(bin_track_uris)} tracks.")
+
+
+
+def open_config(file):
+    with open(file, 'r') as json_file:
+        config = json.load(json_file)
+    return config
+
+
 # Main program flow
 if __name__ == '__main__':
+
+    # config = open_config("../config.json")
+    # CLIENT_ID = config["CLIENT_ID"]
+    # CLIENT_SECRET = config["CLIENT_SECRET"]
+    # REDIRECT_URI = config["REDIRECT_URI"]
+    # SCOPE = config["SCOPE"]
+    # USER_ID = config["USER_ID"]
+
+    USER_ID = "31ikknp5hgwcpwwgnbcwlinfpsyu"
+    CLIENT_ID = "e6fa33c5d4884f39afd576b7deb744d2"
+    CLIENT_SECRET = "737b5b230f57450aaa6f45b000906840"
+    REDIRECT_URI = "http://localhost:888/callback"
+    SCOPE = "playlist-modify-public playlist-modify-private"
+
+
     # Step 1: Get the authorization URL and direct the user to it
     auth_url = get_authorization_url(CLIENT_ID, REDIRECT_URI, SCOPE)
     print(f"Go to the following URL to authorize the app: {auth_url}")
@@ -294,15 +483,60 @@ if __name__ == '__main__':
         print(f"Access Token: {access_token}")
         print(f"Refresh Token: {refresh_token}")
 
-        # Step 4: Now, use the access token to create a playlist and add tracks from the CSV
-        USER_ID = '31ikknp5hgwcpwwgnbcwlinfpsyu'  # Replace with your Spotify user ID
-        playlist_name = "90s-song-list"
+          
         
-        # Create or use the existing playlist
-        playlist_id = create_playlist(access_token, USER_ID, playlist_name)
 
-        if playlist_id:
-            csv_file_path = '90s_song_list.csv'  # Replace with the path to your CSV file
-            search_and_add_tracks_to_playlist(access_token, csv_file_path, playlist_id)
+        # playlist_id = '1qfvm1na7MUHqqP2fJjKPq' # 90s-song-list
+        # playlist_name = "90s-song-list"
+        from_playlist_id = '72LA3OR3WCoXu6ZC7opyz9' # the longest rock playlist in the world
+        to_playlist_name = "longest-rock-playlist63"
+        # to_playlist_id = '7alzqfs7QeTiw4h3ftsGii' # longest-rock-playlist63
+        
+
+
+        # Example usage 1:
+        #   attempt to grab missing files from a specific batch
+
+        batch_number = 63  # The specific batch you're trying to re-add
+
+        # Fetch the tracks for the missing batch
+
+        # If tracks were found, re-add them to the playlist
+        missing_batch_tracks = get_missing_batch(access_token, from_playlist_id, batch_number)
+        if missing_batch_tracks:
+            logging.info("got the missing tracks")
+            logging.info("URIs: ")
+            for track in missing_batch_tracks:
+                logging.info(track)
+            to_playlist_id = create_new_playlist(access_token, USER_ID, to_playlist_name)
+            add_tracks_to_playlist(access_token, missing_batch_tracks, to_playlist_id)
+
+
+        # Use 2:
+
+        #   break up playlists into sub-playlists
+        # playlist_name = "longest-rock-playlist"   # will be used as base name for new playlists
+
+        # Split a spotify playlist into batches (adds as new lists)
+        # split_playlist_into_bins(access_token, USER_ID, playlist_id, playlist_name)
+
+
+
+        # Use 3:
+        #   create playlist from CSV
+
+
+        # playlist_name = "90s-song-list"
+        
+        # # Create or use the existing playlist
+        # playlist_id = create_playlist(access_token, USER_ID, playlist_name)
+
+        # if playlist_id:
+        #     csv_file_path = '90s_song_list.csv'  # Replace with the path to your CSV file
+        #     search_and_add_tracks_to_playlist(access_token, csv_file_path, playlist_id)
+
+
+
+
     else:
         logging.error("Failed to acquire tokens.")
