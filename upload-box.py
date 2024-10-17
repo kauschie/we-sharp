@@ -45,15 +45,13 @@ for folder_name in os.listdir(playlists_dir):
 
         # Loop through each file in the local folder
         for file_name in os.listdir(folder_path):
-            if file_name.endswith(('.mp3', '.m4a', '.wav')):  # Check for specific audio file types
-
-                file_path = os.path.join(folder_path, file_name)  # Full path of the file
-                try:
-                    # Upload the file to the Box folder
-                    uploaded_file = client.folder(box_folder.id).upload(file_path)
-                    print(f'Successfully uploaded "{uploaded_file.name}" with file ID: {uploaded_file.id}')
-                except Exception as e:
-                    print(f'Error uploading "{file_name}": {e}')
+            file_path = os.path.join(folder_path, file_name)  # Full path of the file
+            try:
+                # Upload the file to the Box folder
+                uploaded_file = client.folder(box_folder.id).upload(file_path)
+                print(f'Successfully uploaded "{uploaded_file.name}" with file ID: {uploaded_file.id}')
+            except Exception as e:
+                print(f'Error uploading "{file_name}": {e}')
 
         print(f'Finished processing folder: {folder_name}\n')
 
