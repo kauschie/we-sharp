@@ -4,6 +4,7 @@ import json
 import pandas as pd
 import logging
 import time
+import argparse
 from fuzzywuzzy import fuzz  # Import fuzzy matching library
 
 
@@ -427,7 +428,12 @@ def split_playlist_into_bins(token, user_id, playlist_id, original_playlist_name
         return
 
     # Step 2: Extract track URIs
-    track_uris = [track['track']['uri'] for track in tracks]
+    track_uris = []
+    for track in tracks:
+        if track and track.get('track') and track['track'].get('uri'):
+            track_uris.append(track['track']['uri'])
+        else:
+            logging.error(f"Couldn't add track {track}")
 
     # Step 3: Divide tracks into bins of 100 and create new playlists
     total_bins = (len(track_uris) + 99) // 100  # Calculate total number of bins
@@ -450,22 +456,43 @@ def open_config(file):
     return config
 
 
-# Main program flow
-if __name__ == '__main__':
+def setup_parser():
+    parser = argparse.ArgumentParser(description="Spotify Playlist Management")
+    
+    # Subcommands for each mode of operation
+    subparsers = parser.add_subparsers(dest="command")
 
-    # config = open_config("../config.json")
-    # CLIENT_ID = config["CLIENT_ID"]
-    # CLIENT_SECRET = config["CLIENT_SECRET"]
-    # REDIRECT_URI = config["REDIRECT_URI"]
-    # SCOPE = config["SCOPE"]
-    # USER_ID = config["USER_ID"]
+    # Subcommand for fixing a batch of tracks
+    fix_batch_parser = subparsers.add_parser('fix_batch', help='Fix missing batch of tracks in a playlist')
+    fix_batch_parser.add_argument('--fix_batch', type=int, required=True, help='Batch number to fix')
+    fix_batch_parser.add_argument('--id', type=str, required=True, help='Playlist ID')
+    fix_batch_parser.add_argument('-o', '--output_playlist', type=str, required=True, help='Name of the new playlist')
 
-    USER_ID = "31ikknp5hgwcpwwgnbcwlinfpsyu"
-    CLIENT_ID = "e6fa33c5d4884f39afd576b7deb744d2"
-    CLIENT_SECRET = "737b5b230f57450aaa6f45b000906840"
-    REDIRECT_URI = "http://localhost:888/callback"
-    SCOPE = "playlist-modify-public playlist-modify-private"
+    # Subcommand for splitting a playlist into bins
+    split_playlist_parser = subparsers.add_parser('split_playlist', help='Split a playlist into smaller bins')
+    split_playlist_parser.add_argument('--id', type=str, required=True, help='Playlist ID to split')
+    split_playlist_parser.add_argument('-o', '--output_playlist', type=str, required=True, help='Base name for the new playlists')
 
+    # Subcommand for creating a playlist from CSV
+    csv_parser = subparsers.add_parser('csv', help='Create a playlist from a CSV file')
+    csv_parser.add_argument('--csv', type=str, required=True, help='CSV file with song list')
+
+    return parser
+
+# Main function
+def main():
+    
+    # Parse arguments
+    args = setup_parser().parse_args()
+
+
+    # Common access token and user ID setup (adjust according to your authentication flow)
+    config = open_config("../config.json")
+    CLIENT_ID = config["CLIENT_ID"]
+    CLIENT_SECRET = config["CLIENT_SECRET"]
+    REDIRECT_URI = config["REDIRECT_URI"]
+    SCOPE = config["SCOPE"]
+    USER_ID = config["USER_ID"]
 
     # Step 1: Get the authorization URL and direct the user to it
     auth_url = get_authorization_url(CLIENT_ID, REDIRECT_URI, SCOPE)
@@ -483,43 +510,64 @@ if __name__ == '__main__':
         print(f"Access Token: {access_token}")
         print(f"Refresh Token: {refresh_token}")
 
-          
-        
+    else:
+        logging.error("Failed to acquire tokens.")
+        return -1
 
+
+    
         # playlist_id = '1qfvm1na7MUHqqP2fJjKPq' # 90s-song-list
         # playlist_name = "90s-song-list"
-        from_playlist_id = '72LA3OR3WCoXu6ZC7opyz9' # the longest rock playlist in the world
-        to_playlist_name = "longest-rock-playlist63"
+        # from_playlist_id = '72LA3OR3WCoXu6ZC7opyz9' # the longest rock playlist in the world
+        # to_playlist_name = "longest-rock-playlist63"
         # to_playlist_id = '7alzqfs7QeTiw4h3ftsGii' # longest-rock-playlist63
-        
 
 
+
+    if args.command == 'fix_batch':
         # Example usage 1:
         #   attempt to grab missing files from a specific batch
 
-        batch_number = 63  # The specific batch you're trying to re-add
+        # batch_number = 63  # The specific batch you're trying to re-add
 
-        # Fetch the tracks for the missing batch
+        # # Fetch the tracks for the missing batch
 
-        # If tracks were found, re-add them to the playlist
-        missing_batch_tracks = get_missing_batch(access_token, from_playlist_id, batch_number)
+        # # If tracks were found, re-add them to the playlist
+        # missing_batch_tracks = get_missing_batch(access_token, from_playlist_id, batch_number)
+        # if missing_batch_tracks:
+        #     logging.info("got the missing tracks")
+        #     logging.info("URIs: ")
+        #     for track in missing_batch_tracks:
+        #         logging.info(track)
+        #     to_playlist_id = create_new_playlist(access_token, USER_ID, to_playlist_name)
+        #     add_tracks_to_playlist(access_token, missing_batch_tracks, to_playlist_id)
+
+
+        # Handle fix_batch mode
+        missing_batch_tracks = get_missing_batch(access_token, args.id, args.fix_batch)
         if missing_batch_tracks:
-            logging.info("got the missing tracks")
-            logging.info("URIs: ")
-            for track in missing_batch_tracks:
-                logging.info(track)
-            to_playlist_id = create_new_playlist(access_token, USER_ID, to_playlist_name)
+            to_playlist_id = create_new_playlist(access_token, USER_ID, args.output_playlist)
             add_tracks_to_playlist(access_token, missing_batch_tracks, to_playlist_id)
+    
 
 
-        # Use 2:
+    
+    elif args.command == 'split_playlist':
 
-        #   break up playlists into sub-playlists
-        # playlist_name = "longest-rock-playlist"   # will be used as base name for new playlists
+            # # Use 2:
 
-        # Split a spotify playlist into batches (adds as new lists)
+        # #   break up playlists into sub-playlists
+        # playlist_id = '1QncIew7MqIYQ2Fot22pQJ' # EDM PLAYLIST (All genres)
+        # playlist_name = "edm_playlist"   # will be used as base name for new playlists
+
+        # # Split a spotify playlist into batches (adds as new lists)
         # split_playlist_into_bins(access_token, USER_ID, playlist_id, playlist_name)
 
+    
+        # Handle split_playlist mode
+        split_playlist_into_bins(access_token, USER_ID, args.id, args.output_playlist)
+    
+    elif args.command == 'csv':
 
 
         # Use 3:
@@ -535,8 +583,11 @@ if __name__ == '__main__':
         #     csv_file_path = '90s_song_list.csv'  # Replace with the path to your CSV file
         #     search_and_add_tracks_to_playlist(access_token, csv_file_path, playlist_id)
 
-
-
-
-    else:
-        logging.error("Failed to acquire tokens.")
+        # Handle CSV mode
+        playlist_name = args.csv.split('.')[0]  # Extract playlist name from the file without extension
+        playlist_id = create_playlist(access_token, USER_ID, playlist_name)
+        if playlist_id:
+            search_and_add_tracks_to_playlist(access_token, args.csv, playlist_id)
+    
+if __name__ == "__main__":
+    main()
