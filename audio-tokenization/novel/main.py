@@ -3,11 +3,11 @@ import librosa.display
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 import numpy as np
-import soundfile as sf
+import soundfile as s
 from scipy.spatial.distance import cdist
 
 # Load the audio file
-audio_path = './assets/happy-piano-melody-bright_135bpm_D_major.wav'
+audio_path = './assets/output_other.mp3'
 y, sr = librosa.load(audio_path, sr=None)
 print(f"Sampling Rate: {sr}")
 
@@ -31,7 +31,7 @@ S_normalized = (S_db - S_db.min()) / (S_db.max() - S_db.min())
 S_transposed = S_normalized.T
 
 # Increase number of clusters
-n_clusters = 1000  # Increased for better detail preservation
+n_clusters = 100  # Increased for better detail preservation
 
 # Perform clustering
 kmeans = KMeans(n_clusters=n_clusters, random_state=0)
@@ -65,7 +65,7 @@ D_reconstructed = magnitude_reconstructed * phase
 audio_signal = librosa.istft(D_reconstructed, hop_length=hop_length, window=window)
 
 # Save reconstructed audio
-wav_output_path = 'reconstructed_piano.wav'
+wav_output_path = './assets/reconstructed_piano.wav'
 sf.write(wav_output_path, audio_signal, sr)
 
 # Save spectrograms
