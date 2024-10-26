@@ -6,4 +6,11 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
+htd/
+htd_ft/
+mdx/
+mdx_extra/
+*.mp3
+*.wav
+config.ini
+*.log
