@@ -119,9 +119,9 @@ def save_tracks(sources, sr, output_format, output_prefix="output"):
 
     # Save the original separated tracks
     # save_audio(vocals.squeeze(0), sr, f"{output_prefix}_vocals.{output_format}", output_format)
-    save_audio(bass.squeeze(0), sr, f"{output_prefix}_bass.{output_format}", output_format)
+    # save_audio(bass.squeeze(0), sr, f"{output_prefix}_bass.{output_format}", output_format)
     save_audio(other.squeeze(0), sr, f"{output_prefix}_other.{output_format}", output_format)
-    save_audio(drums.squeeze(0), sr, f"{output_prefix}_drums.{output_format}", output_format)
+    # save_audio(drums.squeeze(0), sr, f"{output_prefix}_drums.{output_format}", output_format)
 
     # Scale down drums by 30% but do not normalize them
     # scaled_drums = drums.squeeze(0) * 0.7
@@ -154,12 +154,12 @@ def save_tracks(sources, sr, output_format, output_prefix="output"):
     # combined_other_base = other + bass
 
     # save_audio(combined_normalized_instrumental.squeeze(0), sr, f"{output_prefix}_combined_normalized_instrumental.{output_format}", output_format)
-    save_audio(combined_instrumental.squeeze(0), sr, f"{output_prefix}_combined_instrumental.{output_format}", output_format)
+    save_audio(combined_instrumental.squeeze(0), sr, f"{output_prefix}_dbo.{output_format}", output_format)
     # save_audio(combined_vocal_drum.squeeze(0), sr, f"{output_prefix}_combined_vocal_drum.{output_format}", output_format)
     # save_audio(combined_other_base_scaled_drum.squeeze(0), sr, f"{output_prefix}_combined_other_base_scaled_drum.{output_format}", output_format)
     # save_audio(combined_other_base.squeeze(0), sr, f"{output_prefix}_combined_other_base.{output_format}", output_format)
     # save_audio(other.squeeze(0), sr, f"{output_prefix}_other.{output_format}", output_format)
-
+    
     print("Finished saving test tracks")
 
 # Function to check for CUDA and prompt the user if needed
@@ -200,12 +200,15 @@ def main(file_path, device=None):
     model.to(device)  # Move model to selected device
 
     # Load and preprocess the input audio file
+    print("loading audio file")
     waveform, sr, output_format = load_audio(file_path)
 
     # Separate sources using Demucs
+    print("separating sources")
     sources = separate_sources(waveform, sr, model, device)
 
     # Save tracks (original, normalized, combined)
+    print("about to save tracks")
     save_tracks(sources, sr, output_format)
 
     
