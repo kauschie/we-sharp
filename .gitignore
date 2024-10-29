@@ -11,6 +11,8 @@ htd_ft/
 mdx/
 mdx_extra/
 *.mp3
+*.m4a
+*.lrc
 *.wav
 config.ini
 *.log
