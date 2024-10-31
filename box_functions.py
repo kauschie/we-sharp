@@ -1,149 +1,71 @@
 import os
-from boxsdk import Client, JWTAuth
-from dotenv import load_dotenv
 
-# Load environment variables from the .env file
-load_dotenv()
+# Get ALL files from a box folder
+# Allows for more than 100 files to be searched
+def get_all_items(client, folder_id):
+    items = []
+    offset = 0
+    limit = 100  # Maximum allowed by Box API
 
-# Set up JWT authentication
-auth = JWTAuth.from_settings_file(os.getenv("KEYPAIR_JSON_PATH"))
-client = Client(auth)
+    while True:
+        # Retrieve a batch of items
+        batch = client.folder(folder_id).get_items(limit=limit, offset=offset)
+        
+        # Add the batch to the items list
+        items.extend(batch)
+        
+        # Break the loop if fewer items were returned than the limit, indicating the end
+        if len(batch) < limit:
+            break
+        
+        # Increase offset to get the next batch
+        offset += limit
 
-# Function to upload files to Box folder
-def upload_files_to_box(folder_id, local_folder_path):
+    return items
 
-    # Check if the provided path is valid
-    if not os.path.exists(local_folder_path) or not os.path.isdir(local_folder_path):
-        # Exit the function if the path is not valid
-        print(f'Error: "{local_folder_path}" is not a valid directory path.')
-        return
+# Uploads a file to the box cloud storage
+# Requires path, file, parent folder id, and client object
+def upload_to_box(directory, file_name, folder_id, client):
+    # Get local path to file
+    file_path = os.path.join(directory, file_name)
 
+    # Upload the file to box
+    uploaded_file = client.folder(folder_id).upload(file_path)
 
-    # Uploads all folders and files from the local directory to the specified Box folder.
-    for folder_name in os.listdir(local_folder_path):
-        folder_path = os.path.join(local_folder_path, folder_name)
+    # return the created Folder ID
+    return uploaded_file.id   
 
-        if os.path.isdir(folder_path):
-            print(f'Processing folder: {folder_name}')
+# Downloads a file from the box cloud storage to a local directory
+# Requires path, file, parent folder id, and client object
+def download_from_box(directory, file_name, folder_id, client):
 
-            # Check if folder already exists in Box
-            items = client.folder(folder_id).get_items()
-            existing_folder = next((item for item in items if item.name == folder_name), None)
-
-            if existing_folder:
-                print(f'Folder "{folder_name}" already exists on Box with ID: {existing_folder.id}')
-                continue
-            else:
-                # Create a new folder on Box
-                box_folder = client.folder(folder_id).create_subfolder(folder_name)
-                print(f'Created folder on Box: {box_folder.name} with ID: {box_folder.id}')
-
-            # Upload files inside the local folder
-            for file_name in os.listdir(folder_path):
-                file_path = os.path.join(folder_path, file_name)
-                try:
-                    # Upload the file to the newly created Box folder
-                    uploaded_file = client.folder(box_folder.id).upload(file_path)
-                    print(f'Successfully uploaded "{uploaded_file.name}" with file ID: {uploaded_file.id}')
-                except Exception as e:
-                    print(f'Error uploading "{file_name}": {e}')
-
-    print(f'\nFinished uploading from {local_folder_path}.\n')
-
-# Function to download files from Box folder
-def download_files_from_box(folder_id, local_folder_path):
-
-    # Ensure the local directory exists
-    if not os.path.exists(local_folder_path):
-        os.makedirs(local_folder_path)
-        print(f'Created local folder: {local_folder_path}')
-
-    # Get items in the Box folder
-    items = client.folder(folder_id).get_items()
-
+    items = get_all_items(client, folder_id)
+    
     for item in items:
-        if item.type == 'folder':
-            # Create a corresponding folder in the local directory
-            local_subfolder_path = os.path.join(local_folder_path, item.name)
-            if not os.path.exists(local_subfolder_path):
-                os.makedirs(local_subfolder_path)
-                print(f'Created local folder: {local_subfolder_path}')
-            else:
-                print(f'Local folder {local_subfolder_path} already exists')
-            # Recursively download files from the subfolder
-            download_files_from_box(item.id, local_subfolder_path)
+        if item.name == file_name:
+            # File found, proceed to download
+            file_path = os.path.join(directory, file_name)
+            with open(file_path, 'wb') as file:
+                file_content = client.file(item.id).download()
+                file.write(file_content)
 
-        elif item.type == 'file':
-            # Download the file
-            file_path = os.path.join(local_folder_path, item.name)
-            if not os.path.exists(file_path):
-                with open(file_path, 'wb') as f:
-                    print(f'Downloading file: {item.name}')
-                    file_content = item.download_to(f)
-                print(f'Successfully downloaded: {item.name}')
-            else:
-                print(f'Local file {item.name} already exists')
-    print(f'\nFinished downloading to {local_folder_path}.\n')
+            print(f"Downloaded {file_name} to {file_path}")
+            return file_path
 
-# Function to delete folders from Box
-def DeleteFromBox(folder_id):
+    print(f"File '{file_name}' not found in the specified Box folder.")
 
-    # Deletes a folder from Box based on the folder ID.
-    try:
-        client.folder(folder_id).delete()
-        print(f'Folder {folder_id} deleted successfully.\n')
-    except Exception as e:
-        print(f'Error deleting folder {folder_id}: {e}')
+# Deletes a file from box using the name of the file and the parent folder id
+def delete_from_box(file_name, folder_id, client):
 
-# Main function
-def main():
-
-    # Folder ID from which files will be uploaded/downloaded
-    box_folder_id = os.getenv("FOLDER_ID")
-
-    user_input = 0
-
-    # Repeat program until user exits the program
-    while user_input != '4':
-
-        # User Prompt
-        print("\nWhat operation would you like to perform?")
-        print("=========================================\n")
-
-        # Menu Options
-        print("1 - Upload directory/folder to Box\n")
-        print("2 - Download directory/folder from Box\n")
-        print("3 - Delete directory/folder from Box\n")
-        print("4 - Ends the program\n")
-
-        # Get user input
-        user_input = input("Waiting for user input: ")
-        print("\n")
-
-        if user_input == '1':
-            # Prompt user for the local directory to upload files from
-            local_dir = input("Please enter the local directory that you would like to upload to Box: ")
-            # Begin upload function
-            upload_files_to_box(box_folder_id, local_dir)
-
-        elif user_input == '2':
-            # Prompt user for the local directory to download files to
-            local_dir = input("Please enter the directory that you would like to download to: ")
-            # Begin download function
-            download_files_from_box(box_folder_id, local_dir)
-
-        elif user_input == '3':
-            # Prompt user for the Box folder ID to delete
-            folder_id = input("Please enter the Box folder ID you would like to delete: ")
-            # Begin delete function
-            DeleteFromBox(folder_id)
-
-        elif user_input == '4':
-            print("Goodbye!")
-
-        else:
-            print("Invalid selection!\n\n")
-
-# Call the main function
-if __name__ == "__main__":
-    main()
+    # Search for the file by name in the specified folder
+    items = get_all_items(client, folder_id)
+    
+    for item in items:
+        if item.name == file_name and item.type == 'file':
+            # If the file is found, delete it
+            item.delete()
+            print(f"Deleted file: {file_name}")
+            return True
+    
+    print(f"File '{file_name}' not found in folder {folder_id}.")
+    return False
