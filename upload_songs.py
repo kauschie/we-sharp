@@ -5,13 +5,19 @@ from datetime import datetime
 import pandas as pd
 import subprocess
 import re
-import random
+from boxsdk import Client, JWTAuth
+import box_functions
 
 # Define paths
 lookup_table_path = 'song_list.csv'
 bak_dir = './bak'
 orig_dir = './orig'
 delete_dir = './delete'
+
+# Box setup
+auth = JWTAuth.from_settings_file('./keypair.json')
+client = Client(auth)
+box_root_folder_id = '288133514348'
 
 # Ensure required directories exist
 for directory in [bak_dir, orig_dir, delete_dir]:
@@ -145,11 +151,6 @@ def update_upload_status(df, artist, title, box_file_id, lrc_box_file_id=None):
     logging.info(f"Updated upload status for {artist} - {title}: box_file_id={box_file_id}, lrc_box_file_id={lrc_box_file_id}")
     return df
 
-def upload_to_box(file):
-    file_id = random.randint(0, 9999999)
-    logging.info(f"{file} was successfully uploaded to Box with file_id: {file_id}.")
-    return file_id
-
 # Stub for uploading files and tracking with Box file ID
 def upload_and_track_files():
     df = load_lookup_table()
@@ -159,9 +160,14 @@ def upload_and_track_files():
             lrc_filename = f"{artist} - {title}.lrc"
             lrc_box_file_id = None
 
-            box_file_id = upload_to_box(os.path.join(orig_dir, filename))
+            # Call function from box_function.py (Uploads file to box)
+            box_file_id = box_functions.upload_to_box(orig_dir, filename, box_root_folder_id, client)
+            # Log result
+            logging.info(f"{filename} was uploaded to Box with file_id: {box_file_id}.")
+
             if os.path.exists(os.path.join(orig_dir, lrc_filename)):
-                lrc_box_file_id = upload_to_box(os.path.join(orig_dir, lrc_filename))
+                lrc_box_file_id = box_functions.upload_to_box(orig_dir, lrc_filename, box_root_folder_id, client)
+                logging.info(f"{lrc_filename} was uploaded to Box with file_id: {lrc_box_file_id}.")
 
             df = update_upload_status(df, artist, title, str(box_file_id), str(lrc_box_file_id))
 
