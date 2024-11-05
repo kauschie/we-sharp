@@ -74,10 +74,14 @@ def save_lookup_table(df):
     df.to_csv(lookup_table_path, index=False)
     logging.info("Updated song_list.csv and saved changes.")
 
-# Extract metadata using FFmpeg
-def extract_metadata(filename):
+def get_artist_title(filename):
     base_name = os.path.splitext(filename)[0]
     artist, title = base_name.split(" - ", 1)
+    return artist, title
+
+# Extract metadata using FFmpeg
+def extract_metadata(filename):
+    artist, title = get_artist_title(filename)
 
     command = ["ffmpeg", "-i", filename]
     result = subprocess.run(command, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
@@ -156,7 +160,7 @@ def upload_and_track_files():
     df = load_lookup_table()
     for filename in os.listdir(orig_dir):
         if filename.endswith('.m4a'):
-            artist, title, songLength, _ = extract_metadata(filename)
+            artist, title = get_artist_title(filename)
             lrc_filename = f"{artist} - {title}.lrc"
             lrc_box_file_id = None
 
@@ -181,9 +185,13 @@ def upload_and_track_files():
     save_lookup_table(df)
     logging.info("Completed upload and tracking for all files in orig.")
 
+def upload_song_list():
+    pass
+
 def main():
     process_files()
     upload_and_track_files()
+    upload_song_list() #TODO: upload song_list.csv
 
 if __name__ == "__main__":
     main()
