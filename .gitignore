@@ -16,3 +16,4 @@ mdx_extra/
 *.wav
 config.ini
 *.log
+keypair.json

@@ -7,19 +7,20 @@ def get_all_items(client, folder_id):
     offset = 0
     limit = 100  # Maximum allowed by Box API
 
-    while True:
+    # while True:
         # Retrieve a batch of items
-        batch = client.folder(folder_id).get_items(limit=limit, offset=offset)
+        # batch = client.folder(folder_id).get_items(limit=limit, offset=offset)
+    batch = client.folder(folder_id).get_items(limit=limit, offset=offset)
         
         # Add the batch to the items list
-        items.extend(batch)
+        # items.extend(batch)
         
         # Break the loop if fewer items were returned than the limit, indicating the end
-        if len(batch) < limit:
-            break
+        # if len(batch) < limit:
+        #     break
         
         # Increase offset to get the next batch
-        offset += limit
+        # offset += limit
 
     return items
 
@@ -39,15 +40,16 @@ def upload_to_box(directory, file_name, folder_id, client):
 # Requires path, file, parent folder id, and client object
 def download_from_box(directory, file_name, folder_id, client):
 
-    items = get_all_items(client, folder_id)
-    
+    # items = get_all_items(client, folder_id)
+    items = client.folder(folder_id).get_items()
+
     for item in items:
         if item.name == file_name:
             # File found, proceed to download
             file_path = os.path.join(directory, file_name)
             with open(file_path, 'wb') as file:
-                file_content = client.file(item.id).download()
-                file.write(file_content)
+                client.file(item.id).download_to(file)
+                # file.write(file_content)
 
             print(f"Downloaded {file_name} to {file_path}")
             return file_path

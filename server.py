@@ -5,12 +5,23 @@ import shutil
 import logging
 from datetime import datetime
 import argparse
+from boxsdk import Client, JWTAuth
+import box_functions
 
 # Paths for files and directories
 song_list_path = 'song_list.csv'
+song_list_id = None
 cut_list_path = 'cut_list.csv'
 cut_config_path = 'cut_config.txt'
 bak_dir = './bak'
+
+# Box setup
+auth = JWTAuth.from_settings_file('./keypair.json')
+client = Client(auth)
+# music folder id (Hardcode?)
+box_root_folder_id = '288133514348'
+# we-sharp folder id (Do we want to have this hardcoded?)
+we_sharp_id = '284827830368'
 
 # Initialize logging
 logging.basicConfig(filename='server_pipeline.log', level=logging.INFO,
@@ -31,20 +42,51 @@ def backup_cut_list():
 
 # Stub function to pull song_list.csv from Box
 # Integrate with Dominic with BoxAPI
-def pull_song_list_from_box():
-    logging.info("Fetching song_list.csv from Box (stubbed).")
-    # TODO: Implement Box API to fetch the song_list.csv file
-    # Currently just returns the local song_list.csv file
+def get_song_list():
+
+    logging.info("Fetching song_list.csv from Box.")
+    # Use current directory
+    directory = "."
+    global song_list_path
+
+    # Determine if the file path already exists, if yes delete
+    file_path = os.path.join(directory, song_list_path)
+    logging.info(f"Searching for {file_path}.")
+    if os.path.exists(file_path):
+        logging.info(f"{file_path} found. Deleting the file")
+        os.remove(file_path)
+
+    logging.info(f"Beginning to download csv from box. Will be located at {file_path}")
+    # Download the csv from box. It should be in the folder 'we-sharp'
+    song_list_path = box_functions.download_from_box(directory, song_list_path, we_sharp_id, client)
+
+    logging.info(f"Pull from box complete. Returning: {song_list_path}")
     return song_list_path
 
 # Stub function to sync files with Box
 # Integrate with Dominic with BoxAPI
 def sync_with_box():
     logging.info("Syncing cut_list.csv and backup directory with Box (stubbed).")
-    # TODO: Replace with actual Box API code to upload the new cut_list.csv and files in bak/
-    for file in os.listdir(bak_dir):
-        logging.info(f"Would sync {file} to Box.")
-    logging.info("Would sync cut_list.csv to Box.")
+
+    # The location of cut_list.csv
+    directory = "."
+
+    # I assume this function takes cut_list.csv and uploads it to box
+    # First we need to Delete the cut_list.csv file from box
+    # If we do not want to delete the original file first, we could upload first, delete the old file, then rename the uploaded file
+
+    # Search for cut_list.csv on box. If found then delete the file
+    if box_functions.delete_from_box(cut_list_path, we_sharp_id, client) == False:
+        logging.info("cut_list.csv was not deleted. It most likely did not exist.")
+    else:
+        logging.info("cut_list.csv was successfully deleted.")
+
+    # Upload local version of cut_list.csv to box
+    logging.info(f"Uploading {cut_list_path} to box.")
+    cut_list_path_id = box_functions.upload_to_box(directory, cut_list_path, we_sharp_id, client)
+    logging.info(f"{cut_list_path} is now synced with box. Box File ID: {cut_list_path_id}")
+
+    # Now we need to sync the backup directory "./bak_dir" with box
 
 # Function to read the cut config file
 def read_cut_config():
@@ -57,7 +99,7 @@ def read_cut_config():
         logging.info(f"Read cut configuration from file: {config}")
     else:
         # If no config file, use defaults (can be overwritten by argparse)
-        config = {'Start_offset': 30, 'length': 30, 'n_cuts': 2}
+        config = {'Start_offset': 30, 'length': 10, 'n_cuts': 3}
         logging.info(f"No config file found. Using default configuration: {config}")
     return config
 
@@ -92,8 +134,13 @@ def update_cut_file_ids(file_name, drums_id, vocals_id, bass_id, other_id):
     logging.info(f"Updated file IDs for {file_name} in cut_list.csv.")
 
 def create_or_update_cut_list(start_offset, cut_length, n_cuts):
+    # Backup the current cut_list.csv if it exists
+    #get_cut_list() # TODO -> get from box first
+    if os.path.exists(cut_list_path):
+        backup_cut_list()
+
     # Pull the song_list.csv from Box
-    pull_song_list_from_box() # TODO: Implement with Dom
+    get_song_list() # TODO: Implement with Dom
 
     # Load the song_list.csv
     if not os.path.exists(song_list_path):
@@ -101,11 +148,9 @@ def create_or_update_cut_list(start_offset, cut_length, n_cuts):
         return
     song_df = pd.read_csv(song_list_path)
 
-    # Backup the current cut_list.csv if it exists
-    if os.path.exists(cut_list_path):
-        backup_cut_list()
-
     # Prepare the cut_list DataFrame or load existing with specified dtypes
+
+    # FOR THE CUT LIST FUNCTION
     if os.path.exists(cut_list_path):
         cut_df = pd.read_csv(cut_list_path, dtype='object')
     else:
@@ -176,6 +221,8 @@ def preprocess_audio():
     logging.info("Starting audio preprocessing (stubbed).")
     # TODO: Implement preprocessing logic with Demucs and FFmpeg for each entry in cut_list.csv
 
+
+
 # Main function with argument parsing
 def main():
     parser = argparse.ArgumentParser(description="Manage and preprocess audio track cuts using cut_list.csv.")
@@ -188,10 +235,7 @@ def main():
     parser.add_argument('--n_cuts', type=int, default=None, help="Number of cuts per audio file.")
 
     args = parser.parse_args()
-
-    # Load or override cut configuration from arguments or file
     cut_config = read_cut_config()
-    # print(f"cut_config: {cut_config}")
 
     start_offset = args.start_offset if args.start_offset is not None else cut_config['Start_offset']
     cut_length = args.length if args.length is not None else cut_config['length']
@@ -202,6 +246,5 @@ def main():
         create_or_update_cut_list(start_offset, cut_length, n_cuts)
     elif args.mode == 'preprocess':
         preprocess_audio()
-
 if __name__ == "__main__":
     main()

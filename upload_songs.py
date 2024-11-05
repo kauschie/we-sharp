@@ -17,8 +17,9 @@ delete_dir = './delete'
 # Box setup
 auth = JWTAuth.from_settings_file('./keypair.json')
 client = Client(auth)
-box_root_folder_id = '288133514348'
-
+music_dir = '288133514348'   # parent dir of orig_dir
+orig_remote_dir = '292504599665'   # sub dir of music_dir
+we_sharp_id = '284827830368'
 # Ensure required directories exist
 for directory in [bak_dir, orig_dir, delete_dir]:
     if not os.path.exists(directory):
@@ -38,6 +39,7 @@ def backup_lookup_table():
 
 def load_lookup_table():
     if os.path.exists(lookup_table_path):
+        backup_lookup_table()  # Make a backup before modifying
         # Load the CSV, ensuring types for existing entries
         df = pd.read_csv(
             lookup_table_path,
@@ -52,7 +54,6 @@ def load_lookup_table():
                 'lrc_box_file_id': 'object'
             }
         )
-        backup_lookup_table()  # Make a backup before modifying
     else:
         # Initialize DataFrame with specific column types
         df = pd.DataFrame({
@@ -165,12 +166,12 @@ def upload_and_track_files():
             lrc_box_file_id = None
 
             # Call function from box_function.py (Uploads file to box)
-            box_file_id = box_functions.upload_to_box(orig_dir, filename, box_root_folder_id, client)
+            box_file_id = box_functions.upload_to_box(orig_dir, filename, orig_remote_dir, client)
             # Log result
             logging.info(f"{filename} was uploaded to Box with file_id: {box_file_id}.")
 
             if os.path.exists(os.path.join(orig_dir, lrc_filename)):
-                lrc_box_file_id = box_functions.upload_to_box(orig_dir, lrc_filename, box_root_folder_id, client)
+                lrc_box_file_id = box_functions.upload_to_box(orig_dir, lrc_filename, orig_remote_dir, client)
                 logging.info(f"{lrc_filename} was uploaded to Box with file_id: {lrc_box_file_id}.")
 
             df = update_upload_status(df, artist, title, str(box_file_id), str(lrc_box_file_id))
@@ -185,8 +186,11 @@ def upload_and_track_files():
     save_lookup_table(df)
     logging.info("Completed upload and tracking for all files in orig.")
 
+# upload to we-sharp/
 def upload_song_list():
-    pass
+    box_functions.upload_to_box(".", lookup_table_path, we_sharp_id, client)
+    logging.info("Finished uploading song_list.csv")
+
 
 def main():
     process_files()
