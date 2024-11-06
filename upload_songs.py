@@ -17,9 +17,10 @@ delete_dir = './delete'
 # Box setup
 auth = JWTAuth.from_settings_file('./keypair.json')
 client = Client(auth)
+we_sharp_id = '284827830368' # we-sharp project root directory
 music_dir = '288133514348'   # parent dir of orig_dir
 orig_remote_dir = '292504599665'   # sub dir of music_dir
-we_sharp_id = '284827830368'
+
 # Ensure required directories exist
 for directory in [bak_dir, orig_dir, delete_dir]:
     if not os.path.exists(directory):
@@ -167,6 +168,7 @@ def upload_and_track_files():
 
             # Call function from box_function.py (Uploads file to box)
             box_file_id = box_functions.upload_to_box(orig_dir, filename, orig_remote_dir, client)
+
             # Log result
             logging.info(f"{filename} was uploaded to Box with file_id: {box_file_id}.")
 
