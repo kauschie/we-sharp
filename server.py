@@ -10,7 +10,7 @@ import box_functions
 
 # Paths for files and directories
 song_list_path = 'song_list.csv'
-song_list_id = None
+song_list_id = '1692234213448'
 cut_list_path = 'cut_list.csv'
 cut_config_path = 'cut_config.txt'
 bak_dir = './bak'
@@ -18,10 +18,12 @@ bak_dir = './bak'
 # Box setup
 auth = JWTAuth.from_settings_file('./keypair.json')
 client = Client(auth)
-# music folder id (Hardcode?)
-box_root_folder_id = '288133514348'
-# we-sharp folder id (Do we want to have this hardcoded?)
+# we-sharp folder id
 we_sharp_id = '284827830368'
+# Bak folder id
+bak_folder_id = '292534511993'
+# music folder id
+box_root_folder_id = '288133514348'
 
 # Initialize logging
 logging.basicConfig(filename='server_pipeline.log', level=logging.INFO,
@@ -58,7 +60,7 @@ def get_song_list():
 
     logging.info(f"Beginning to download csv from box. Will be located at {file_path}")
     # Download the csv from box. It should be in the folder 'we-sharp'
-    song_list_path = box_functions.download_from_box(directory, song_list_path, we_sharp_id, client)
+    song_list_path = box_functions.download_from_box(directory, song_list_path, song_list_id, client)
 
     logging.info(f"Pull from box complete. Returning: {song_list_path}")
     return song_list_path
@@ -71,22 +73,19 @@ def sync_with_box():
     # The location of cut_list.csv
     directory = "."
 
-    # I assume this function takes cut_list.csv and uploads it to box
-    # First we need to Delete the cut_list.csv file from box
-    # If we do not want to delete the original file first, we could upload first, delete the old file, then rename the uploaded file
-
-    # Search for cut_list.csv on box. If found then delete the file
-    if box_functions.delete_from_box(cut_list_path, we_sharp_id, client) == False:
-        logging.info("cut_list.csv was not deleted. It most likely did not exist.")
-    else:
-        logging.info("cut_list.csv was successfully deleted.")
-
-    # Upload local version of cut_list.csv to box
+    # Upload local version of cut_list.csv to box. This will overwrite it
     logging.info(f"Uploading {cut_list_path} to box.")
     cut_list_path_id = box_functions.upload_to_box(directory, cut_list_path, we_sharp_id, client)
     logging.info(f"{cut_list_path} is now synced with box. Box File ID: {cut_list_path_id}")
 
-    # Now we need to sync the backup directory "./bak_dir" with box
+    # Syncronize the backup directory "./bak_dir" with box
+    logging.info(f"Uploading {bak_dir} to box.")
+    for file_name in os.listdir(bak_dir):
+        print(f"Syncronizing {file_name} with box ...")
+        # Call the upload_to_box function for each file
+        bak_path_id = box_functions.upload_to_box(bak_dir, file_name, bak_folder_id, client)
+        logging.info(f"{file_name} is now synced with box. Box File ID: {bak_path_id}")
+    logging.info(f"{bak_dir} is now synced with box. Box Folder ID: {bak_folder_id}")
 
 # Function to read the cut config file
 def read_cut_config():
