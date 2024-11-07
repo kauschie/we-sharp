@@ -10,10 +10,10 @@
 ### upload_and_track_files():
 + uploads to box and gets file_id
 
-
 #### TODO
 + *Need* to sync backups to box
 + *FIX* number of times backups occur?
++ *Need* to backup song_list.csv to box as well
 
 # ~ Server.py ~
 
@@ -52,7 +52,8 @@
     -- log, skip and move to ./delete
 + folder id's for all folders?
 + want to back up cut list first before deleting and save backups
-
++ download cut_list.csv if it exists
++ separate dirs based on genre
 
 -> reads cut_config
 
@@ -63,16 +64,35 @@
 
 
 we-sharp/
-  --song_list.csv
-  --cut_list.csv
-  |
-  |--/music/ (box_root_folder_id)
-        |
-        |--orig/ *.m4a *.lrc
-        |--full/ *wav
+
+  |--/rock/ 
+        |--song_list.csv
+        |--cut_list.csv
+        |--orig/ *.m4a, *.lrc
+        |--dbo/ *wav
+        |--other/ *wav
+        |--vocals/ *wav
+        |--drums/ *wav
+        |--bass/ *wav
+  |--/edm/ 
+        |--song_list.csv
+        |--cut_list.csv
+        |--orig/ *.m4a, *.lrc
+        |--dbo/ *wav
         |--other/ *wav
         |--vocals/ *wav
         |--drums/ *wav
         |--bass/ *wav
   |
-  |--/bak/ cut_list_*.csv song_list_*.csv
+  |--/bak/ cut_list_*.csv, song_list_*.csv
+
+
+ffmpeg -i .m4a -ac 1 -ar 44100 -sample_fmt s16p output.wav 
+
+
+grab_song()
+
+extract 30 sec segment with ffmpeg:
+
+    ffmpeg -ss 38 -t 30 -i output_dbo.wav -c copy output_sample.mp3
+        get start time from cut col

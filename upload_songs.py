@@ -83,7 +83,7 @@ def get_artist_title(filename):
 
 # Extract metadata using FFmpeg
 def extract_metadata(filename):
-    artist, title = get_artist_title(filename)
+    # artist, title = get_artist_title(filename)
 
     command = ["ffmpeg", "-i", filename]
     result = subprocess.run(command, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
@@ -97,9 +97,15 @@ def extract_metadata(filename):
         song_length = hours * 3600 + minutes * 60 + seconds
     else:
         song_length = None
+    
+    artist_match = re.search(r"\s*album_artist\s*:\s*(.+)", output)
+    title_match = re.search(r"\s*title\s*:\s*(.+)", output)
 
-    logging.info(f"Extracted metadata for {filename}: Artist={artist}, Title={title}, Length={song_length}s")
-    return artist, title, song_length, filename
+    album_artist = artist_match.group(1) if artist_match else None
+    title = title_match.group(1) if title_match else None
+
+    logging.info(f"Extracted metadata for {filename}: Artist={album_artist}, Title={title}, Length={song_length}s")
+    return album_artist, title, song_length
 
 def add_song_to_lookup(df, filename, artist, title, songLength, lrc_box_file_id):
     if not (df['filename'] == filename).any():
@@ -125,25 +131,27 @@ def add_song_to_lookup(df, filename, artist, title, songLength, lrc_box_file_id)
 
 # Process files in the current directory
 def process_files():
+    directory = 'music'
     df = load_lookup_table()
-    files = os.listdir('.')
+    files = os.listdir(directory)
 
     for file in files:
         if file.endswith('.m4a'):
-            artist, title, songLength, filename = extract_metadata(file)
+            filename = file
+            artist, title, songLength = extract_metadata(os.path.join(directory, file))
             lrc_filename = f"{artist} - {title}.lrc"
             lrc_box_file_id = None
             
-            if os.path.exists(lrc_filename):
+            if os.path.exists(os.path.join(directory, lrc_filename)):
                 lrc_box_file_id = 'pending'
 
             df = add_song_to_lookup(df, filename, artist, title, songLength, lrc_box_file_id)
             
-            shutil.move(file, os.path.join(orig_dir, file))
+            shutil.move(os.path.join(directory, file), os.path.join(orig_dir, file))
             logging.info(f"Moved {file} to {orig_dir}.")
                 
             if lrc_box_file_id == 'pending':
-                shutil.move(lrc_filename, os.path.join(orig_dir, lrc_filename))
+                shutil.move(os.path.join(directory, lrc_filename), os.path.join(orig_dir, lrc_filename))
                 logging.info(f"Moved {lrc_filename} to {orig_dir}.")
 
     save_lookup_table(df)
@@ -197,7 +205,7 @@ def upload_song_list():
 def main():
     process_files()
     upload_and_track_files()
-    upload_song_list() #TODO: upload song_list.csv
+    upload_song_list()
 
 if __name__ == "__main__":
     main()
