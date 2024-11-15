@@ -17,3 +17,6 @@ mdx_extra/
 config.ini
 *.log
 keypair.json
+bak/*.csv
+not-used/*
+*.pyc
