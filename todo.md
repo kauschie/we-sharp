@@ -10,11 +10,6 @@
 ### upload_and_track_files():
 + uploads to box and gets file_id
 
-#### TODO
-+ *Need* to sync backups to box
-+ *FIX* number of times backups occur?
-+ *Need* to backup song_list.csv to box as well
-
 # ~ Server.py ~
 
 ### read_cut_config()

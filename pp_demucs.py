@@ -2,14 +2,14 @@
 Example Usage:
 
 ## CUDA (GPU) Enabled
-python demucs_test.py your_audio_file.wav --device cuda  
+python pp_demucs.py your_audio_file.wav --device cuda  
 
 ## CPU Enabled
-python demucs_test.py your_audio_file.wav --device cpu
+python pp_demucs.py your_audio_file.wav --device cpu
 
 ## without specifying
-## this will prompt during execution
-python demucs_test.py your_audio_file.wav
+## this will try using cuda by default and fall back on cpu
+python pp_demucs.py your_audio_file.wav
 """
 
 import torchaudio
