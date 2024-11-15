@@ -22,7 +22,8 @@ client = Client(auth)
 
 # Folder IDs (shouldn't change)
 # we-sharp folder id
-we_sharp_id = '284827830368'
+# we_sharp_id = '284827830368'
+song_list_root = '293564308799' # 90s folder
 # Bak folder id
 bak_folder_id = '292534511993'
 # music folder id
@@ -125,13 +126,14 @@ def sync_with_box():
 
     # Upload local version of cut_list.csv to box. This will overwrite it
     logging.info(f"Uploading {cut_list_path} to box.")
-    cut_list_path_id = box_functions.upload_to_box(directory, cut_list_path, we_sharp_id, client)
+    cut_list_path_id = box_functions.upload_to_box(directory, cut_list_path, song_list_root, client)
     logging.info(f"{cut_list_path} is now synced with box. Box File ID: {cut_list_path_id}")
 
     # Syncronize the backup directory "./bak_dir" with box
     logging.info(f"Uploading {bak_dir} to box.")
     for file_name in os.listdir(bak_dir):
         print(f"Syncronizing {file_name} with box ...")
+        logging.info(f"Syncronizing {file_name} with box ...")
         # Call the upload_to_box function for each file
         bak_path_id = box_functions.upload_to_box(bak_dir, file_name, bak_folder_id, client)
         logging.info(f"{file_name} is now synced with box. Box File ID: {bak_path_id}")
@@ -278,6 +280,7 @@ def preprocess_audio():
         # cut_length = int(row['cut_length'])
         # n_cuts = int(row['n_cuts'])
         print(f"working on file {file_name}")
+        logging(f"working on file {file_name}")
 
         # Step 1: retrieve base file from box
         local_path = box_functions.download_from_box(directory, file_name, file_id, client)
@@ -285,6 +288,7 @@ def preprocess_audio():
             logging.info(f"Error getting file {file_name}... skipping")
             continue
         print(f"downloaded file to {local_path}")
+        logging(f"downloaded file to {local_path}")
         generated_files.append(local_path)
 
         # Step 2: Convert .m4a to .wav
