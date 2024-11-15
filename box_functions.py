@@ -6,11 +6,11 @@ from boxsdk.exception import BoxAPIException
 def get_all_items(client, folder_id):
     items = []
     offset = 0
-    limit = 100  # Maximum allowed by Box API
+    limit = 1000  # Maximum allowed by Box API
 
     while True:
         # Retrieve a batch of items
-        batch = list(client.folder(folder_id).get_items(limit=limit, offset=offset))
+        batch = list(client.folder(folder_id).get_items(limit=limit, offset=offset, fields=['type', 'id', 'name', 'created_at']))
         
         # Add the batch to the items list
         items.extend(batch)
