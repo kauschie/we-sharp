@@ -8,6 +8,39 @@ import argparse
 import subprocess
 from boxsdk import Client, JWTAuth
 import box_functions
+import signal
+
+
+class PrintLogger:
+    def write(self, message):
+        # print(message, end='')  # Always print the message exactly as received
+        if message.strip():  # Log only non-empty lines
+            logging.debug(message.strip())
+    
+    def flush(self):  # Handle the flush method for compatibility
+        pass
+
+class ErrorLogger:
+    def write(self, message):
+        # print(message, end='', file=sys.__stderr__)  # Print to stderr exactly as received
+        if message.strip():  # Log only non-empty lines
+            logging.error(message.strip())
+    
+    def flush(self):
+        pass
+
+df = None
+def handle_exit_signal(signal_received, frame):
+    logging.warning(f"Received signal {signal_received}. Terminating early and saving current DataFrame.")
+    if df is not None:
+        save_lookup_table(df, cut_list_path)
+        
+        
+    logging.info("DataFrame saved. Exiting program.")
+    exit(0)
+signal.signal(signal.SIGINT, handle_exit_signal)
+signal.signal(signal.SIGTERM, handle_exit_signal)
+signal.signal(signal.SIGHUP, handle_exit_signal)
 
 # Paths for files and directories
 song_list_path = 'song_list.csv'
@@ -37,6 +70,8 @@ vocals_folder_id = '292546617353'
 bass_folder_id = '292547961183'
 other_folder_id = '292548127080'
 training_data_folder_id = '292623465429' # training1
+training_cuts_dbo_id = '292621472410' # contains all cut/preprocessed files
+training_cuts_other_id = '292620621147'
 
 # Initialize logging
 logging.basicConfig(filename='server_pipeline.log', level=logging.INFO,
@@ -181,7 +216,7 @@ def update_cut_file_ids(file_name, dbo_id, drums_id, vocals_id, bass_id, other_i
     cut_df.loc[cut_df['file_name'] == file_name, ['dbo_file_id', 'drums_file_id', 'vocals_file_id', 'bass_file_id', 'other_file_id']] = \
         [dbo_id, drums_id, vocals_id, bass_id, other_id]
 
-    cut_df.to_csv(cut_list_path, index=False)
+    save_lookup_table(df, cut_list_path)
     logging.info(f"Updated file IDs for {file_name} in cut_list.csv.")
 
 def gen_cuts(start_offset, cut_length, n_cuts):
@@ -192,6 +227,10 @@ def gen_cuts(start_offset, cut_length, n_cuts):
 
     # Prepare the cut_list DataFrame or load existing with specified dtypes
     cut_df = get_cut_df(n_cuts)
+
+    # safe to global in case of term signal
+    global df
+    df = cut_df
 
     # Process each song in song_list.csv
     for _, row in song_df.iterrows():
@@ -239,11 +278,15 @@ def gen_cuts(start_offset, cut_length, n_cuts):
             logging.info(f"Added new entry for {file_name} in cut_list.csv.")
 
     # Save the updated cut_list.csv
-    cut_df.to_csv(cut_list_path, index=False)
-    logging.info("cut_list.csv has been updated with new cut times.")
+    save_lookup_table(df, cut_list_path)
 
     # Sync with Box
     sync_with_box()
+
+def save_lookup_table(data_frame, path):
+    data_frame.to_csv(path, index=False)
+    logging.info(f"Saved changes to {path}.")
+
 
 def remove_local_files(files_to_delete):
     for file_path in files_to_delete:
@@ -293,7 +336,9 @@ def preprocess_audio():
 
         # Step 2: Convert .m4a to .wav
         wav_file = local_path.replace(".m4a", ".wav")
-        subprocess.run(["ffmpeg", "-i", local_path, "-ac", "1", "-ar", "44100", "-sample_fmt", "s16p", wav_file])
+
+        # first make wav with 44.1khz sr and s16p bit depth
+        subprocess.run(["ffmpeg", "-i", local_path, "-ar", "44100", "-sample_fmt", "s16", wav_file])
         if not os.path.exists(wav_file):
             logging.info(f"Error preprocessing {local_path} with FFMPEG... skipping")
             continue
@@ -326,6 +371,9 @@ def preprocess_audio():
         }
         
         for demucs_file in demucs_output:
+
+            # mix again down to 
+
             file_type = demucs_file.split('_')[-1].replace(".wav", "")
             folder_id = folder_map.get(f"_{file_type}")
             file_id = box_functions.upload_to_box('.', demucs_file, folder_id, client)
@@ -363,7 +411,7 @@ def preprocess_audio():
         generated_files.clear()
 
     # Step 5: Save the updated cut_list.csv and sync it with Box
-    cut_df.to_csv(cut_list_path, index=False)
+    save_lookup_table(df, cut_list_path)
     sync_with_box()
     logging.info("cut_list.csv has been updated with new cut segment times and file IDs.")
 
