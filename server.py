@@ -127,8 +127,8 @@ def get_cut_df(n_cuts=None):
     if os.path.exists(cut_list_path):
         make_backup(cut_list_path)   # backup if it already exists
         cut_df = pd.read_csv(cut_list_path, dtype='object')
-        if n_cuts == None:  # just retrieving, not dropping cols or creating new cuts
-            return cut_df
+        # if n_cuts == None:  # just retrieving, not dropping cols or creating new cuts
+        #     return cut_df
 
     else:
         # Initialize an empty DataFrame with compatible data types
@@ -223,10 +223,12 @@ def gen_cuts(start_offset, cut_length, n_cuts):
 
 
     # Pull the song_list.csv from Box
-    song_df = get_song_list() 
+    song_df = get_song_list()
+    # print(f"song_df size: {song_df.shape}")
 
     # Prepare the cut_list DataFrame or load existing with specified dtypes
     cut_df = get_cut_df(n_cuts)
+    # print(f"cut_df size: {cut_df.shape}")
 
     # safe to global in case of term signal
     global df
@@ -237,6 +239,7 @@ def gen_cuts(start_offset, cut_length, n_cuts):
         file_name = row['filename']
         file_id = row['box_file_id']
         song_length = row['songLength']
+        # print(f"checking file_name: {file_name}")
         
         # Generate cut times
         cut_times = generate_cut_times(song_length, start_offset, cut_length, n_cuts)
@@ -278,7 +281,7 @@ def gen_cuts(start_offset, cut_length, n_cuts):
             logging.info(f"Added new entry for {file_name} in cut_list.csv.")
 
     # Save the updated cut_list.csv
-    save_lookup_table(df, cut_list_path)
+    save_lookup_table(cut_df, cut_list_path)
 
     # Sync with Box
     sync_with_box()
