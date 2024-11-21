@@ -44,7 +44,7 @@ signal.signal(signal.SIGHUP, handle_exit_signal)
 
 # Paths for files and directories
 song_list_path = 'song_list.csv'
-song_list_id = '1692234213448'
+song_list_id = '1699222338484'
 cut_list_path = 'cut_list.csv'
 cut_config_path = 'cut_config.txt'
 bak_dir = './bak'
