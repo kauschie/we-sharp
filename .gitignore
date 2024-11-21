@@ -20,3 +20,4 @@ keypair.json
 bak/*.csv
 not-used/*
 *.pyc
+assets/

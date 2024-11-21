@@ -74,10 +74,10 @@ def load_audio(file_path):
     ext = os.path.splitext(file_path)[1].lower()
 
     if ext == '.mp3':
-        print("MP3 file detected.")
+        # print("MP3 file detected.")
         output_format = 'mp3'
     elif ext == '.wav':
-        print("WAV file detected.")
+        # print("WAV file detected.")
         output_format = 'wav'
     else:
         raise ValueError("Unsupported file format. Please provide an MP3 or WAV file.")
@@ -202,7 +202,7 @@ def main(file_path, device=None):
     model.to(device)  # Move model to selected device
 
     # Load and preprocess the input audio file
-    print("loading audio file")
+    print(f"loaded {file_path} file")
     waveform, sr, output_format = load_audio(file_path)
 
     # Separate sources using Demucs
