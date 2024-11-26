@@ -406,7 +406,7 @@ def preprocess_audio(n_cuts):
 
             file_type = demucs_file.split('_')[-1].replace(".wav", "")
             folder_id = folder_map.get(f"_{file_type}")
-            file_id = box_functions.upload_to_box('.', demucs_file, folder_id, client)
+            file_id = box_functions.upload_to_box(directory, os.path.basename(demucs_file), folder_id, client)
             file_ids[f"{file_type}_file_id"] = file_id  # Store the file_id for updating cut_df
 
         # Update cut_df with demucs output file IDs
