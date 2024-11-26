@@ -333,9 +333,29 @@ def preprocess_audio(n_cuts):
 
         # Step 1: retrieve base file from box
         local_path = box_functions.download_from_box(directory, file_name, file_id, client)
-        if not os.path.exists(local_path):
-            logging.info(f"Error getting file {file_name}... skipping")
-            continue
+        if (local_path == None) or (not os.path.exists(local_path)):
+
+            # search by name
+            existing_file = box_functions.check_existing(file_name, file_id, client)
+            if not existing_file:
+                # still didn't find
+                logging.info(f"Error getting file {file_name}... skipping")
+                continue
+
+            # update file_id in song_list and cut_list:
+
+            local_path = box_functions.download_from_box(directory, file_name, existing_file.id, client)
+
+            if (local_path == None) or (not os.path.exists(local_path)):
+                logging.info(f"Still couldn't download file {file_name} with old id {file_id} or {existing_file.id}... skipping")
+                continue
+
+            logging.info(f"Found existing file with diff id {file_name}, song_list.csv out of date")
+            logging.info(f"Old Info: filename: {file_name}, id: {file_id}")
+            logging.info(f"New Info: filename: {existing_file.name}, {existing_file.id}")
+            
+            file_id = existing_file.id
+
         print(f"downloaded file to {local_path}")
         logging(f"downloaded file to {local_path}")
         generated_files.append(local_path)
