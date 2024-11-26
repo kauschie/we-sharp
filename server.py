@@ -306,6 +306,9 @@ def preprocess_audio(n_cuts):
     generated_files = []
     directory = "serv_delete"
 
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
     # Retrieve the latest cut_list.csv and save globally for term_signal
     global df
     df = get_cut_df(n_cuts)
