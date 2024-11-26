@@ -38,6 +38,7 @@ def handle_exit_signal(signal_received, frame):
         
     logging.info("DataFrame saved. Exiting program.")
     exit(0)
+
 signal.signal(signal.SIGINT, handle_exit_signal)
 signal.signal(signal.SIGTERM, handle_exit_signal)
 signal.signal(signal.SIGHUP, handle_exit_signal)
@@ -76,6 +77,7 @@ training_cuts_other_id = '292620621147'
 # Initialize logging
 logging.basicConfig(filename='server_pipeline.log', level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
+logging.getLogger("boxsdk").setLevel(logging.WARNING)
 
 # Ensure the backup directory exists
 # should be local to hold backups and sync them back later
@@ -144,7 +146,7 @@ def get_cut_df(n_cuts=None):
 
     # Add cut_time columns to df
     for i in range(n_cuts):
-        cut_df[f'cut_time{i+1}'] = None
+        cut_df[f'cut_time{i+1}'] = 'None'
         cut_df[f'cut{i+1}_dbo_id'] = 'pending'
         cut_df[f'cut{i+1}_other_id'] = 'pending'
 
@@ -209,11 +211,11 @@ def update_cut_file_ids(file_name, dbo_id, drums_id, vocals_id, bass_id, other_i
     if not os.path.exists(cut_list_path):
         logging.error("cut_list.csv not found. Cannot update file IDs.")
         return
-
-    cut_df = pd.read_csv(cut_list_path)
+    global df
+    df = pd.read_csv(cut_list_path)
     
     # Update the file IDs for the specified entry
-    cut_df.loc[cut_df['file_name'] == file_name, ['dbo_file_id', 'drums_file_id', 'vocals_file_id', 'bass_file_id', 'other_file_id']] = \
+    df.loc[df['file_name'] == file_name, ['dbo_file_id', 'drums_file_id', 'vocals_file_id', 'bass_file_id', 'other_file_id']] = \
         [dbo_id, drums_id, vocals_id, bass_id, other_id]
 
     save_lookup_table(df, cut_list_path)
@@ -227,12 +229,11 @@ def gen_cuts(start_offset, cut_length, n_cuts):
     # print(f"song_df size: {song_df.shape}")
 
     # Prepare the cut_list DataFrame or load existing with specified dtypes
-    cut_df = get_cut_df(n_cuts)
+    # save globally in case of sigterm
+    global df
+    df = get_cut_df(n_cuts)
     # print(f"cut_df size: {cut_df.shape}")
 
-    # safe to global in case of term signal
-    global df
-    df = cut_df
 
     # Process each song in song_list.csv
     for _, row in song_df.iterrows():
@@ -266,22 +267,22 @@ def gen_cuts(start_offset, cut_length, n_cuts):
             cut_entry[f'cut_time{i+1}'] = str(cut_time)
 
         # Check if the entry already exists in cut_df
-        if file_name in cut_df['file_name'].values:
+        if file_name in df['file_name'].values:
             # Get the index of the existing row
-            row_index = cut_df.index[cut_df['file_name'] == file_name].tolist()[0]
+            row_index = df.index[df['file_name'] == file_name].tolist()[0]
 
             # Update each field in the existing row
             for key, value in cut_entry.items():
                 # print(f"Updating '{key}' for '{file_name}': {value}")
-                cut_df.at[row_index, key] = value  # Directly set the cell value
+                df.at[row_index, key] = value  # Directly set the cell value
             logging.info(f"Updated entry for {file_name} in cut_list.csv.")
         else:
             # Add as a new row if it does not exist
-            cut_df = pd.concat([cut_df, pd.DataFrame([cut_entry])], ignore_index=True)
+            df = pd.concat([df, pd.DataFrame([cut_entry])], ignore_index=True)
             logging.info(f"Added new entry for {file_name} in cut_list.csv.")
 
     # Save the updated cut_list.csv
-    save_lookup_table(cut_df, cut_list_path)
+    save_lookup_table(df, cut_list_path)
 
     # Sync with Box
     sync_with_box()
@@ -300,16 +301,18 @@ def remove_local_files(files_to_delete):
             logging.info(f"Couldn't find {file_path}.")
 
 
-def preprocess_audio():
+def preprocess_audio(n_cuts):
 
     generated_files = []
     directory = "serv_delete"
 
-    # Retrieve the latest cut_list.csv
-    cut_df = get_cut_df()
+    # Retrieve the latest cut_list.csv and save globally for term_signal
+    global df
+    df = get_cut_df(n_cuts)
+
 
     # Process each file in cut_df
-    for _, row in cut_df.iterrows():
+    for _, row in df.iterrows():
         file_name = row['file_name']
         file_id = row['file_id']
         
@@ -325,8 +328,8 @@ def preprocess_audio():
         # start_offset = int(row['start_offset'])
         # cut_length = int(row['cut_length'])
         # n_cuts = int(row['n_cuts'])
-        print(f"working on file {file_name}")
-        logging(f"working on file {file_name}")
+        print(f"working on file {str(file_name)}")
+        logging(f"working on file {str(file_name)}")
 
         # Step 1: retrieve base file from box
         local_path = box_functions.download_from_box(directory, file_name, file_id, client)
@@ -383,7 +386,7 @@ def preprocess_audio():
             file_ids[f"{file_type}_file_id"] = file_id  # Store the file_id for updating cut_df
 
         # Update cut_df with demucs output file IDs
-        cut_df.loc[cut_df['file_name'] == file_name, ['dbo_file_id', 'drums_file_id', 'vocals_file_id', 'bass_file_id', 'other_file_id']] = \
+        df.loc[df['file_name'] == file_name, ['dbo_file_id', 'drums_file_id', 'vocals_file_id', 'bass_file_id', 'other_file_id']] = \
             [file_ids['dbo_file_id'], file_ids['drums_file_id'], file_ids['vocals_file_id'], file_ids['bass_file_id'], file_ids['other_file_id']]
 
         # Step 5: Generate cuts for each specified cut time
@@ -403,9 +406,9 @@ def preprocess_audio():
         #     dbo_cut_id = box_functions.upload_to_box('.', dbo_cut_file, training_data_folder_id, client)
         #     other_cut_id = box_functions.upload_to_box('.', other_cut_file, training_data_folder_id, client)
 
-        #     # Update cut_df with cut segment file IDs for dbo and other files
-        #     cut_df.at[cut_df['file_name'] == file_name, f'cut{i}_dbo_id'] = dbo_cut_id
-        #     cut_df.at[cut_df['file_name'] == file_name, f'cut{i}_other_id'] = other_cut_id
+        #     # Update df with cut segment file IDs for dbo and other files
+        #     df.at[df['file_name'] == file_name, f'cut{i}_dbo_id'] = dbo_cut_id
+        #     df.at[df['file_name'] == file_name, f'cut{i}_other_id'] = other_cut_id
 
         logging.info(f"Finished Preprocessing {file_name}")
 
@@ -431,8 +434,8 @@ def main():
     args = parser.parse_args()
 
     # Execute based on mode
+    cut_config = read_cut_config()
     if args.mode == 'gencuts':
-        cut_config = read_cut_config()
 
         start_offset = args.start_offset if args.start_offset is not None else cut_config['Start_offset']
         cut_length = args.length if args.length is not None else cut_config['length']
@@ -440,6 +443,6 @@ def main():
 
         gen_cuts(start_offset, cut_length, n_cuts)
     elif args.mode == 'preprocess':
-        preprocess_audio()
+        preprocess_audio(cut_config['n_cuts'])
 if __name__ == "__main__":
     main()
