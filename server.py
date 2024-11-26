@@ -360,7 +360,7 @@ def preprocess_audio(n_cuts):
             file_id = existing_file.id
 
         print(f"downloaded file to {local_path}")
-        logging(f"downloaded file to {local_path}")
+        # logging(f"downloaded file to {local_path}")
         generated_files.append(local_path)
 
         # Step 2: Convert .m4a to .wav
@@ -369,7 +369,7 @@ def preprocess_audio(n_cuts):
         # first make wav with 44.1khz sr and s16p bit depth
         subprocess.run(["ffmpeg", "-i", local_path, "-ar", "44100", "-sample_fmt", "s16", wav_file])
         if not os.path.exists(wav_file):
-            logging.info(f"Error preprocessing {local_path} with FFMPEG... skipping")
+            logging.info(f"Error preprocessing {file_name} with FFMPEG... skipping")
             continue
         generated_files.append(wav_file)
 
