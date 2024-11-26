@@ -10,6 +10,10 @@ from boxsdk import Client, JWTAuth
 import box_functions
 import signal
 
+# Initialize logging
+logging.basicConfig(filename='server_pipeline.log', level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+logging.getLogger("boxsdk").setLevel(logging.WARNING)
 
 class PrintLogger:
     def write(self, message):
@@ -74,10 +78,7 @@ training_data_folder_id = '292623465429' # training1
 training_cuts_dbo_id = '292621472410' # contains all cut/preprocessed files
 training_cuts_other_id = '292620621147'
 
-# Initialize logging
-logging.basicConfig(filename='server_pipeline.log', level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
-logging.getLogger("boxsdk").setLevel(logging.WARNING)
+
 
 # Ensure the backup directory exists
 # should be local to hold backups and sync them back later
@@ -339,7 +340,7 @@ def preprocess_audio(n_cuts):
         if (local_path == None) or (not os.path.exists(local_path)):
 
             # search by name
-            existing_file = box_functions.check_existing(file_name, file_id, client)
+            existing_file = box_functions.check_existing(file_name, client, orig_folder_id)
             if not existing_file:
                 # still didn't find
                 logging.info(f"Error getting file {file_name}... skipping")
