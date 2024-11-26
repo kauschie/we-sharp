@@ -146,7 +146,7 @@ def get_cut_df(n_cuts=None):
 
     # Add cut_time columns to df
     for i in range(n_cuts):
-        cut_df[f'cut_time{i+1}'] = 'None'
+        cut_df[f'cut_time{i+1}'] = None
         cut_df[f'cut{i+1}_dbo_id'] = 'pending'
         cut_df[f'cut{i+1}_other_id'] = 'pending'
 
@@ -328,8 +328,8 @@ def preprocess_audio(n_cuts):
         # start_offset = int(row['start_offset'])
         # cut_length = int(row['cut_length'])
         # n_cuts = int(row['n_cuts'])
-        print(f"working on file {str(file_name)}")
-        logging(f"working on file {str(file_name)}")
+        print(f"working on file {file_name}")
+        # logging(f"working on file {str(file_name)}")
 
         # Step 1: retrieve base file from box
         local_path = box_functions.download_from_box(directory, file_name, file_id, client)
