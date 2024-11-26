@@ -24,13 +24,7 @@ def get_all_items(client, folder_id):
 
     return items
 
-# Uploads a file to the box cloud storage
-# Requires path, file, parent folder id, and client object
-def upload_to_box(directory, file_name, folder_id, client):
-    # Get local path to file
-    file_path = os.path.join(directory, file_name)
-
-    # Determine if the file already exists on box
+def check_existing(directory, file_name, client, folder_id):
     items = get_all_items(client, folder_id)
     existing_file = None
 
@@ -39,6 +33,16 @@ def upload_to_box(directory, file_name, folder_id, client):
             print(f"File '{file_name}' exists in the folder.")
             existing_file = item
             break
+    return existing_file
+
+# Uploads a file to the box cloud storage
+# Requires path, file, parent folder id, and client object
+def upload_to_box(directory, file_name, folder_id, client):
+    # Get local path to file
+    file_path = os.path.join(directory, file_name)
+
+    # Determine if the file already exists on box
+    existing_file = get_existing(directory, file_name, client, folder_id)
         
     if existing_file:
         # Update the file if it exists on box
@@ -67,6 +71,7 @@ def download_from_box(directory, file_name, file_id, client):
     except BoxAPIException as e:
         if e.status == 404:
             print(f"File with ID {file_id} not found on Box.")
+
             return None  # File doesn't exist on Box
         else:
             raise  # Re-raise other exceptions
@@ -81,6 +86,7 @@ def download_from_box(directory, file_name, file_id, client):
 
     print(f"Downloaded {file_name} to {file_path}")
     return file_path
+
 
 # Deletes a file from box using the file id
 def delete_from_box(file_id, client):
