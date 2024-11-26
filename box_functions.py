@@ -24,7 +24,7 @@ def get_all_items(client, folder_id):
 
     return items
 
-def check_existing(directory, file_name, client, folder_id):
+def check_existing(file_name, client, folder_id):
     items = get_all_items(client, folder_id)
     existing_file = None
 
@@ -42,7 +42,7 @@ def upload_to_box(directory, file_name, folder_id, client):
     file_path = os.path.join(directory, file_name)
 
     # Determine if the file already exists on box
-    existing_file = get_existing(directory, file_name, client, folder_id)
+    existing_file = check_existing(file_name, client, folder_id)
         
     if existing_file:
         # Update the file if it exists on box

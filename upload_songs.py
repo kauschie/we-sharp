@@ -72,7 +72,7 @@ logging.basicConfig(filename='pipeline.log', level=logging.INFO,
 logging.info("Starting the music data pipeline.")
 logging.getLogger("boxsdk").setLevel(logging.WARNING)
 # Redirect stdout and stderr
-sys.stdout = PrintLogger()
+# sys.stdout = PrintLogger()
 sys.stderr = ErrorLogger()
 
 # Function to create a backup of song_list.csv
@@ -285,6 +285,7 @@ def upload_lrcs(directory = None):
         logging.info(f"Did not update any files.")
 
 # Fixes missing file IDs in song_list.csv
+#   if they incorrectly say 'pending'
 def fix_ids():
     df = load_lookup_table()
 
@@ -302,9 +303,7 @@ def fix_ids():
     # Create a dictionary for easy lookup of Box file IDs by filename
     box_items = {}
     for item in unique_items:
-        # file_with_more_info = item.get()
-        file_with_more_info = item
-        box_timestamp = file_with_more_info['created_at']
+        box_timestamp = item['created_at']
         dt = datetime.fromisoformat(box_timestamp)
         formatted_timestamp = dt.strftime("%Y-%m-%d %H:%M:%S")
         box_items[item.name] = ['uploaded', str(item.id), str(formatted_timestamp)]
@@ -314,6 +313,8 @@ def fix_ids():
     updates_made = False
     for idx, row in df.iterrows():
         filename = row['filename']
+
+        # test to see if lrc files need to be fixed
         if row['box_file_id'] == 'pending' or \
             row['upload_status'] == 'pending' or \
             row['lrc_box_file_id'] == 'pending':
@@ -323,16 +324,30 @@ def fix_ids():
                 lrc_id = box_items.get(lrc_filename, 'pending') # Get 'pending' if not found
                 if lrc_id != 'pending':
                     lrc_id = lrc_id[1] # guard against lrc file not found
-                new_vals = {
-                    'upload_status': box_items[filename][0],
-                    'box_file_id': box_items[filename][1],
-                    'upload_time': box_items[filename][2],
-                    'lrc_box_file_id': lrc_id  # Add lrc ID if needed in the DataFrame
+
+                    # shouldn't need to update lrc if the lrc_id isn't found
+                    new_vals = {
+                        'upload_status': box_items[filename][0],
+                        'box_file_id': box_items[filename][1],
+                        'upload_time': box_items[filename][2],
+                        'lrc_box_file_id': lrc_id  # Add lrc ID if needed in the DataFrame
+                    }
+                    
+                    df.loc[idx, new_vals.keys()] = new_vals.values()
+                    updates_made = True
+                    logging.info(f"Updated {filename} with file ID: {box_items[filename]}")
+
+        # test to see if id needs to be updated
+        elif (filename in box_items) and (row['box_file_id'] != box_items[filename][1]):
+            print(f"fix ids found mixmatching ids for {filename}")
+            print(f"old_id: {row['box_file_id']} new_id: {box_items[filename][1]}")
+            new_vals = {
+                    'box_file_id': box_items[filename][1],  # new id
+                    'upload_time': box_items[filename][2]   # upload_time in case its different
                 }
-                
-                df.loc[idx, new_vals.keys()] = new_vals.values()
-                updates_made = True
-                logging.info(f"Updated {filename} with file ID: {box_items[filename]}")
+            df.loc[idx, new_vals.keys()] = new_vals.values()
+            updates_made = True
+            logging.info(f"Updated {filename} with file ID: {box_items[filename]}")
 
     if updates_made:
         save_lookup_table(df)
