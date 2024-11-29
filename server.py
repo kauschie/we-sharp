@@ -45,7 +45,7 @@ def handle_exit_signal(signal_received, frame):
 
 signal.signal(signal.SIGINT, handle_exit_signal)
 signal.signal(signal.SIGTERM, handle_exit_signal)
-signal.signal(signal.SIGHUP, handle_exit_signal)
+# signal.signal(signal.SIGHUP, handle_exit_signal)
 
 # Paths for files and directories
 song_list_path = 'song_list.csv'
@@ -130,8 +130,8 @@ def get_cut_df(n_cuts=None):
     if os.path.exists(cut_list_path):
         make_backup(cut_list_path)   # backup if it already exists
         cut_df = pd.read_csv(cut_list_path, dtype='object')
-        # if n_cuts == None:  # just retrieving, not dropping cols or creating new cuts
-        #     return cut_df
+        if n_cuts == None:  # just retrieving, not dropping cols or creating new cuts
+            return cut_df
 
     else:
         # Initialize an empty DataFrame with compatible data types
@@ -285,12 +285,11 @@ def gen_cuts(start_offset, cut_length, n_cuts):
     # Save the updated cut_list.csv
     save_lookup_table(df, cut_list_path)
 
-    # Sync with Box
-    sync_with_box()
 
 def save_lookup_table(data_frame, path):
     data_frame.to_csv(path, index=False)
     logging.info(f"Saved changes to {path}.")
+    sync_with_box()
 
 
 def remove_local_files(files_to_delete):
@@ -300,6 +299,70 @@ def remove_local_files(files_to_delete):
             logging.info(f"Deleted {file_path}.")
         else:
             logging.info(f"Couldn't find {file_path}.")
+
+def get_processed_ids():
+    global df
+    df = get_cut_df(None)
+
+    if df.empty:
+        logging.error(f"cut_list.csv empty")
+        return
+
+    # dbo_file_id,drums_file_id,vocals_file_id,bass_file_id,other_file_id
+
+    # bass_folder_id = '292547961183'
+
+    folders = {"dbo": dbo_folder_id, "drums": drums_folder_id, "vocals": vocals_folder_id, "bass": bass_folder_id, "other": other_folder_id}
+    
+    # get all uploaded files in all of the above folders
+    all_files = {}
+    for folder, id in folders.items():
+        folder_id = id
+        items = box_functions.get_all_items(client, folder_id)
+        # remove any duplicates which may happen when requesting files from box
+        unique_items = list({item.id: item for item in items}.values())
+        logging.info(f"Got {len(items)} items from Box...")
+        logging.info(f"There's {len(unique_items)} unique items")
+        for file in unique_items:
+            all_files[file.name] = file.id
+            
+
+    # iterate through the dataframe and update the ids of the ids
+    updates_made = False
+    for idx, row in df.iterrows():
+        filename = row['file_name']
+        #dbo_file_id,drums_file_id,vocals_file_id,bass_file_id,other_file_id
+        dbo_name = filename.replace(".m4a", "_dbo.wav")
+        drums_name = filename.replace(".m4a", "_drums.wav")
+        vocals_name = filename.replace(".m4a", "_vocals.wav")
+        bass_name = filename.replace(".m4a", "_bass.wav")
+        other_name = filename.replace(".m4a", "_other.wav")
+
+        updates = {}
+
+        if row['dbo_file_id'] == 'pending' and dbo_name in all_files:
+            updates['dbo_file_id'] = all_files[dbo_name]
+        if row['drums_file_id'] == 'pending' and drums_name in all_files:
+            updates['drums_file_id'] = all_files[drums_name]
+        if row['vocals_file_id'] == 'pending' and vocals_name in all_files:
+            updates['vocals_file_id'] = all_files[vocals_name]
+        if row['bass_file_id'] == 'pending' and bass_name in all_files:
+            updates['bass_file_id'] = all_files[bass_name]
+        if row['other_file_id'] == 'pending' and other_name in all_files:
+            updates['other_file_id'] = all_files[other_name]
+        
+        if len(updates) > 0: #updates made
+            logging.info(f"Uploading {len(updates)} for {filename}")
+            for key, value in updates.items():
+                df.loc[idx, key] = value
+            updates_made = True
+            
+    if updates_made:
+        logging.info("Updated cut_list.csv with missing file IDs. Uploading to Box")
+        save_lookup_table(df, cut_list_path)
+        logging.info("cut_list.csv has been updated with new cut segment times and file IDs.")
+    else:
+        logging.info("No updates were made")
 
 
 def preprocess_audio(n_cuts):
@@ -316,6 +379,8 @@ def preprocess_audio(n_cuts):
 
 
     # Process each file in cut_df
+    batch_size = 100
+    batch = 0   # upload after batch of 100
     for _, row in df.iterrows():
         file_name = row['file_name']
         file_id = row['file_id']
@@ -406,7 +471,24 @@ def preprocess_audio(n_cuts):
 
             file_type = demucs_file.split('_')[-1].replace(".wav", "")
             folder_id = folder_map.get(f"_{file_type}")
-            file_id = box_functions.upload_to_box(directory, os.path.basename(demucs_file), folder_id, client)
+        
+            num_attempts = 0
+            successful = False
+            while(not successful and num_attempts < 5):
+                try:
+                    file_id = box_functions.upload_to_box(directory, os.path.basename(demucs_file), folder_id, client)
+                    successful = True
+                except Exception as e:
+                    num_attempts += 1
+                    logging.error(f"Could not upload {demucs_file} attempt {num_attempts}: {e}")
+            if not successful:
+                logging.info(f"Could not upload {demucs_file} possible connection error... saving and quitting")
+                save_lookup_table(df, cut_list_path)
+                logging.info("cut_list.csv has been updated but preprocessing is incomplete.")
+                sys.exit()
+
+
+
             file_ids[f"{file_type}_file_id"] = file_id  # Store the file_id for updating cut_df
 
         # Update cut_df with demucs output file IDs
@@ -435,6 +517,13 @@ def preprocess_audio(n_cuts):
         #     df.at[df['file_name'] == file_name, f'cut{i}_other_id'] = other_cut_id
 
         logging.info(f"Finished Preprocessing {file_name}")
+        batch += 1
+
+        if (batch >= batch_size):
+            logging.info("cut_list.csv saving current batch.")
+            save_lookup_table(df, cut_list_path)
+            logging.info("cut_list.csv finished saving current batch.")
+            batch = 0
 
     if len(generated_files) != 0:
         remove_local_files(generated_files)
@@ -442,7 +531,6 @@ def preprocess_audio(n_cuts):
 
     # Step 5: Save the updated cut_list.csv and sync it with Box
     save_lookup_table(df, cut_list_path)
-    sync_with_box()
     logging.info("cut_list.csv has been updated with new cut segment times and file IDs.")
 
 # Main function with argument parsing
