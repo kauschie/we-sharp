@@ -21,3 +21,4 @@ bak/*.csv
 not-used/*
 *.pyc
 assets/
+training1/

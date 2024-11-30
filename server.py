@@ -300,6 +300,137 @@ def remove_local_files(files_to_delete):
         else:
             logging.info(f"Couldn't find {file_path}.")
 
+
+def create_data_set():
+
+    training_dir = "training"
+    dbo_dir = os.path.join(training_dir, "dbo")
+    other_dir = os.path.join(training_dir, "other")
+
+
+    # make directories for training data
+    if not os.path.exists(training_dir):
+        os.makedirs(training_dir)
+    if not os.path.exists(dbo_dir):
+        os.makedirs(dbo_dir)
+    if not os.path.exists(other_dir):
+        os.makedirs(other_dir)
+
+    # assign to global in case of signal interrupt so we can save it
+    global df
+    df = get_cut_df(None)
+
+    if df.empty:
+        logging.error(f"cut_list.csv empty")
+        sys.exit(1)
+ 
+
+    generated_files = []
+    batch_size = 100
+    batch = 0
+    for idx, row in df.iterrows():
+        file_name = row['file_name']
+        dbo_id = row['dbo_file_id']
+        dbo_name = file_name.replace(".m4a", "_dbo.wav")
+        other_id = row['other_file_id']
+        other_name = file_name.replace(".m4a", "_other.wav")
+        n_cuts = int(row['n_cuts'])
+
+        if row['dbo_file_id'] == 'pending' or row['other_file_id'] == 'pending':
+            logging.info(f"File {file_name} never preprocessed... skipping")
+            continue
+
+
+        if row['process_time'] != 'pending':
+            logging.info(f"File {file_name} already preprocessed... skipping")
+            continue
+
+        # Step 1: retrieve dbo and other files from box
+
+        num_attempts = 0
+        successful = False
+        while(not successful and num_attempts < 5):
+            try:
+                dbo_path = box_functions.download_from_box(".", dbo_name, dbo_id, client)
+                other_path = box_functions.download_from_box(".", other_name, other_id, client)
+                successful = True
+            except Exception as e:
+                num_attempts += 1
+                logging.error(f"Could not download {dbo_name} or {other_name} attempt {num_attempts}: {e}")
+        if not successful:
+            logging.error(f"Could not download {dbo_name} or {other_name} possible connection error... saving and quitting")
+            save_lookup_table(df, cut_list_path)
+            sys.exit(1)
+        # check for valid file paths 
+        if (dbo_path == None) or (not os.path.exists(dbo_path)) or \
+            (other_path == None) or (not os.path.exists(other_path)):
+            logging.info(f"Couldn't download file {dbo_name} or {other_name} ... skipping")
+            continue
+
+        generated_files.append(dbo_path)
+        generated_files.append(other_path)
+
+        # iterate over n cuts 
+        cut_length = row[f"cut_length"]
+        for i in range(1, n_cuts + 1):
+            cut_time = row[f"cut_time{i}"]
+            
+            # Create cut segment files for dbo and other files
+            dbo_cut_name = dbo_name.replace(".wav", f"_cut{i}.wav")
+            dbo_cut_file = os.path.join(dbo_dir, dbo_cut_name)
+            
+            other_cut_name = other_name.replace(".wav", f"_cut{i}.wav")
+            other_cut_file = os.path.join(other_dir, other_cut_name)
+            
+            # FFMPEG to make cuts
+            try:
+                subprocess.run(["ffmpeg", "-y", "-ss", str(cut_time), "-t", str(cut_length), "-i", dbo_path, dbo_cut_file], check=True)
+                subprocess.run(["ffmpeg", "-y", "-ss", str(cut_time), "-t", str(cut_length), "-i", other_path, other_cut_file], check=True)
+            except subprocess.CalledProcessError as e:
+                logging.error(f"Error during ffmpeg processing: {e}")
+                continue  # Skip this cut
+            except Exception as e:
+                logging.error(f"Some other error {e} exiting...")
+                save_lookup_table(df, cut_list_path)
+                sys.exit(1)
+
+
+            # Upload cut segment files to Box and store file IDs
+            try:
+                dbo_cut_id = box_functions.upload_to_box(".", dbo_cut_file, training_cuts_dbo_id, client)
+                other_cut_id = box_functions.upload_to_box(".", other_cut_file, training_cuts_other_id, client)
+            except Exception as e:
+                logging.error(f"Error uploading cut files to Box: {e}")
+                save_lookup_table(df, cut_list_path)
+                continue  # Skip to next cut
+
+
+            # Update df with cut segment file IDs for dbo and other files
+            df.loc[idx, f'cut{i}_dbo_id'] = dbo_cut_id
+            df.loc[idx, f'cut{i}_other_id'] = other_cut_id
+
+        upload_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        df.loc[idx, "process_time"] = str(upload_time)
+
+        if (generated_files):
+            remove_local_files(generated_files)
+            generated_files.clear()
+
+        logging.info(f"Finished Preprocessing {file_name}")
+        batch += 1
+
+        if (batch >= batch_size):
+            logging.info("cut_list.csv saving current batch.")
+            save_lookup_table(df, cut_list_path)
+            logging.info("cut_list.csv finished saving current batch.")
+            batch = 0
+
+
+    # Save the updated cut_list.csv and sync it with Box
+    save_lookup_table(df, cut_list_path)
+    logging.info("cut_list.csv has been updated with new cut segment times and file IDs.")
+
+
 def get_processed_ids():
     global df
     df = get_cut_df(None)
@@ -485,7 +616,7 @@ def preprocess_audio(n_cuts):
                 logging.info(f"Could not upload {demucs_file} possible connection error... saving and quitting")
                 save_lookup_table(df, cut_list_path)
                 logging.info("cut_list.csv has been updated but preprocessing is incomplete.")
-                sys.exit()
+                sys.exit(1)
 
 
 
@@ -537,8 +668,8 @@ def preprocess_audio(n_cuts):
 def main():
     parser = argparse.ArgumentParser(description="Manage and preprocess audio track cuts using cut_list.csv.")
     parser.add_argument(
-        '--mode', choices=['gencuts', 'preprocess'], required=True,
-        help="Operation mode: 'gencuts' to create/update cut_list, 'preprocess' to process audio based on cut_list."
+        '--mode', choices=['gencuts', 'preprocess', 'create_data'], required=True,
+        help="Operation mode: 'gencuts' to create/update cut_list, 'preprocess' to process audio based on cut_list, create_data to download/create files from cut times"
     )
     parser.add_argument('--start_offset', type=int, default=None, help="Start offset for random cuts.")
     parser.add_argument('--length', type=int, default=None, help="Length of each cut.")
@@ -556,5 +687,8 @@ def main():
         gen_cuts(start_offset, cut_length, n_cuts)
     elif args.mode == 'preprocess':
         preprocess_audio(cut_config['n_cuts'])
+
+    elif args.mode == 'create_data':
+        create_data_set()
 if __name__ == "__main__":
     main()
