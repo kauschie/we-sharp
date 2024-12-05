@@ -1,6 +1,7 @@
 import pandas as pd
 import random
 import os
+import sys
 import shutil
 import logging
 from datetime import datetime
@@ -11,8 +12,11 @@ import box_functions
 import signal
 
 # Initialize logging
-logging.basicConfig(filename='server_pipeline.log', level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    filename='server_pipeline.log',
+    level=logging.DEBUG,  # Use DEBUG during development to capture all events
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 logging.getLogger("boxsdk").setLevel(logging.WARNING)
 
 class PrintLogger:
@@ -33,11 +37,19 @@ class ErrorLogger:
     def flush(self):
         pass
 
+sys.stdout = PrintLogger()
+sys.stderr = ErrorLogger()
+
 df = None
 def handle_exit_signal(signal_received, frame):
     logging.warning(f"Received signal {signal_received}. Terminating early and saving current DataFrame.")
     if df is not None:
-        save_lookup_table(df, cut_list_path)
+        try:
+            save_lookup_table(df, cut_list_path)
+        except Exception as e:
+            logging.error(f"Failed to save DataFrame on termination: {e}")
+        logging.info("DataFrame saved. Exiting program.")
+        sys.exit(0)
         
         
     logging.info("DataFrame saved. Exiting program.")
@@ -384,8 +396,34 @@ def create_data_set():
             
             # FFMPEG to make cuts
             try:
-                subprocess.run(["ffmpeg", "-y", "-ss", str(cut_time), "-t", str(cut_length), "-i", dbo_path, dbo_cut_file], check=True)
-                subprocess.run(["ffmpeg", "-y", "-ss", str(cut_time), "-t", str(cut_length), "-i", other_path, other_cut_file], check=True)
+                # subprocess.run(["ffmpeg", "-y", "-ss", str(cut_time), "-t", str(cut_length), "-i", dbo_path, dbo_cut_file], check=True)
+
+                subprocess.run([
+                                    "ffmpeg", 
+                                    "-y", 
+                                    "-ss", str(cut_time), 
+                                    "-t", str(cut_length), 
+                                    "-i", dbo_path,  # Input file
+                                    "-ac", "1",  # Set audio to 1 channel (mono)
+                                    "-ar", "24000",  # Set sampling rate to 24000 Hz
+                                    dbo_cut_file  # Output file
+                                ], check=True)
+
+                # subprocess.run(["ffmpeg", "-y", "-ss", str(cut_time), "-t", str(cut_length), "-i", other_path, other_cut_file], check=True)
+
+                subprocess.run([
+                                    "ffmpeg", 
+                                    "-y", 
+                                    "-ss", str(cut_time), 
+                                    "-t", str(cut_length), 
+                                    "-i", other_path,  # Input file
+                                    "-ac", "1",  # Set audio to 1 channel (mono)
+                                    "-ar", "24000",  # Set sampling rate to 24000 Hz
+                                    other_cut_file  # Output file
+                                ], check=True)
+
+
+
             except subprocess.CalledProcessError as e:
                 logging.error(f"Error during ffmpeg processing: {e}")
                 continue  # Skip this cut
@@ -494,6 +532,93 @@ def get_processed_ids():
         logging.info("cut_list.csv has been updated with new cut segment times and file IDs.")
     else:
         logging.info("No updates were made")
+
+def remix_files():
+    global df
+    df = get_cut_df(None)
+
+    if df.empty:
+        logging.error(f"cut_list.csv empty")
+        return
+
+    training_dir = "training"
+    folders = {"dbo": training_cuts_dbo_id, "other": training_cuts_other_id}
+    
+    # reset process_time to 'pending' for all files
+    df['process_time'] = 'pending'
+
+    # get all uploaded files in all of the above folders
+    all_files = {}
+    batch = 0
+    for folder, id in folders.items():
+        folder_id = id
+        file_dir = os.path.join(training_dir, folder)   # e.g. training/dbo or training/other
+        items = box_functions.get_all_items(client, folder_id)
+        # remove any duplicates which may happen when requesting files from box
+        unique_items = list({item.id: item for item in items}.values())
+        logging.info(f"Got {len(items)} items from Box...")
+        logging.info(f"There's {len(unique_items)} unique items")
+        
+        for file in unique_items:
+            file_path = os.path.join(file_dir, file.name)
+
+            if not os.path.exists(file_path):
+                logging.info(f"couldn't find file {file_path}")
+                continue
+
+            try:
+                subprocess.run([
+                                    "ffmpeg", 
+                                    "-y", 
+                                    "-i", file_path,  # Input file
+                                    "-ac", "1",       # Mix to mono
+                                    "-ar", "24000",   # Resample to 24000 Hz
+                                    "temp.wav"        # Temporary output file
+                                ], check=True)
+
+                                # Replace the original file with the temporary file
+                shutil.move("temp.wav", file_path)
+            except Exception as e:
+                print(f"Error processing file with FFmpeg: {e}")
+            finally:
+                if os.path.exists("temp.wav"):
+                    os.remove("temp.wav")
+            
+            # reupload
+            successful = False
+            num_attempts = 0
+            while (not successful and num_attempts < 5):
+                try:
+                    logging.info(f"Updating {file.name} on box ...")
+                    uploaded_file = client.file(file.id).update_contents(file_path)
+                    print(f"{file.name} Updated")
+                    successful = True
+                except Exception as e:
+                    num_attempts += 1
+                    logging.error(f"Could not upload {file.name} attempt {num_attempts}: {e}")
+                    time.sleep(2)
+            if not successful:
+                logging.info(f"Could not upload {file.name} possible connection error... saving and quitting")
+                sys.exit(1)
+
+            chop_length = (len(folder) + 10) * -1
+            lookup_id = file.name[:chop_length]+".m4a" # remove _dbo_cut1.wav or _other_cut1.wav, add m4a
+            upload_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            df.loc[df['file_name'] == lookup_id, ['process_time']] = upload_time
+            
+            logging.info(f"Finished Remixing {file.name}")
+            
+            batch += 1
+
+            if (batch >= 100):
+                logging.info("cut_list.csv saving current batch.")
+                save_lookup_table(df, cut_list_path)
+                logging.info("cut_list.csv finished saving current batch.")
+                batch = 0
+
+        logging.info(f"finished folder {folder}")
+        save_lookup_table(df, cut_list_path)
+   
 
 
 def preprocess_audio(n_cuts):
