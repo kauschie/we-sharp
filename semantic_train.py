@@ -3,11 +3,24 @@ import time
 from datetime import datetime
 import signal
 import pickle
+import logging
 import torch
 from torch.utils.data import Dataset
 from audiolm_pytorch import HubertWithKmeans, SemanticTransformer, SemanticTransformerTrainer
 from audiolm_pytorch.trainer import dict_values_to_device
 from tensorboardX import SummaryWriter
+
+# Configure logging
+log_dir = './logs'
+os.makedirs(log_dir, exist_ok=True)
+log_file_path = os.path.join(log_dir, 'semantic_training.log')
+logging.basicConfig(
+    filename=log_file_path,
+    filemode='a',
+    format='%(asctime)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger()
 
 # Paths to models and dataset
 hubert_checkpoint_path = './models/hubert_base_ls960.pt'
@@ -15,12 +28,11 @@ hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
 dataset_path = './dbo'
 results_folder = './results'  # Results directory
 save_path = os.path.join(results_folder, 'semantic_transformer_final.pt')  # Save final model here
-log_file_path = os.path.join(results_folder, 'training_logs.txt')
 train_split_path = os.path.join(results_folder, 'train_split.pkl')
 valid_split_path = os.path.join(results_folder, 'valid_split.pkl')
 
 # Initialize TensorBoard writer
-writer = SummaryWriter(logdir='./logs')
+writer = SummaryWriter(logdir=log_dir)
 
 # Initialize HubertWithKmeans
 wav2vec = HubertWithKmeans(
@@ -34,8 +46,8 @@ semantic_transformer = SemanticTransformer(
     dim=1024,  # Transformer dimensionality
     depth=6,  # Number of transformer layers
     flash_attn=True,  # Use Flash Attention for efficiency
-    ff_dropout=0.1,     # add some dopout to reduce overfitting
-    attn_dropout=0.1    # add some dropout to reduce overfitting
+    ff_dropout=0.1,     # Add some dropout to reduce overfitting
+    attn_dropout=0.1    # Add some dropout to reduce overfitting
 ).cuda()
 
 # Load or create dataset splits
@@ -44,7 +56,7 @@ def load_splits():
         choice = None
         while choice not in ['y', 'n']:
             try:
-                choice = input("Data Splits found.\nDo you wish to load Previously saved training and validation Data? (y/n): ").strip().lower()
+                choice = input("Data Splits found.\nDo you wish to load previously saved training and validation data? (y/n): ").strip().lower()
             except Exception as e:
                 choice = None
                 print(f"Error getting input: {e}")
@@ -58,7 +70,6 @@ def load_splits():
         with open(valid_split_path, 'rb') as f:
             valid_split = pickle.load(f)
         return train_split, valid_split
-    
     else:
         return None, None
 
@@ -97,11 +108,13 @@ else:
 
     # Save the generated dataset splits
     print("Saving newly created dataset splits...")
+    logger.info("Saving newly created dataset splits...")
     with open(train_split_path, 'wb') as f:
         pickle.dump(semantic_trainer.ds, f)
     with open(valid_split_path, 'wb') as f:
         pickle.dump(semantic_trainer.valid_ds, f)
     print(f"Dataset splits saved: {len(semantic_trainer.ds)} training samples, {len(semantic_trainer.valid_ds)} validation samples.")
+    logger.info(f"Dataset splits saved: {len(semantic_trainer.ds)} training samples, {len(semantic_trainer.valid_ds)} validation samples.")
 
 # Check for existing checkpoints
 checkpoint_files = [f for f in os.listdir(results_folder) if f.endswith('.pt')]
@@ -113,39 +126,32 @@ if checkpoint_files:
     if choice.isdigit() and 1 <= int(choice) <= len(checkpoint_files):
         checkpoint_path = os.path.join(results_folder, checkpoint_files[int(choice) - 1])
         print(f"Loading checkpoint from {checkpoint_path}...")
+        logger.info(f"Loading checkpoint from {checkpoint_path}...")
         semantic_trainer.load(checkpoint_path)
         print(f"Checkpoint {checkpoint_path} loaded successfully.")
+        logger.info(f"Checkpoint {checkpoint_path} loaded successfully.")
     else:
         print("Starting fresh without loading a checkpoint.")
+        logger.info("Starting fresh without loading a checkpoint.")
 else:
-    print("No checkpoints found. Starting fresh.")
+    logger.info("No checkpoints found. Starting fresh.")
 
 # Define a signal handler for saving on interrupt
 def handle_interrupt(signal_received, frame):
     print("\nTraining interrupted by user.")
     save_prompt = input("Do you want to save the current model and results? (y/n): ").strip().lower()
     steps = int(semantic_trainer.steps.item())
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     if save_prompt == 'y':
         term_path = str(semantic_trainer.results_folder / f'semantic.transformer.{steps}.terminated_session.pt')
         semantic_trainer.save(term_path)
         semantic_trainer.print(f"{steps}: saving model to {term_path}")
-        try:
-            with open(log_file_path, 'a') as log_file:
-                log_file.write(f"[{timestamp}] Step {steps}: Training interrupted by user. Model saved to {term_path}.\n")
-        except Exception as e:
-            print(f"Failed to write to log file: {e}")
+        logger.info(f"{steps}: saving model to {term_path}")
     else:
         semantic_trainer.print("Progress not saved.")
-        try:
-            with open(log_file_path, 'a') as log_file:
-                log_file.write(f"[{timestamp}] Step {steps}: Training interrupted by user. Progress not saved.\n")
-        except Exception as e:
-            print(f"Failed to write to log file: {e}")
+        logger.info("Progress not saved.")
 
     exit(0)
-
 
 signal.signal(signal.SIGINT, handle_interrupt)
 
@@ -154,11 +160,15 @@ def log_fn(logs):
     validation_interval = 10
     model_save_interval = 100
 
-    steps = int(semantic_trainer.steps.item())-1  # Get the current step from the trainer (trainer adds 1 before calling log function)
+    steps = int(semantic_trainer.steps.item()) - 1  # Get the current step from the trainer (trainer adds 1 before calling log function)
     loss = logs.get('loss', None)
 
+    # Log to Log and TensorBoard
+    if loss is not None:
+        logger.info(f"Step {steps}: Training Loss: {loss}")
+        writer.add_scalar("Training Loss", loss, steps)
+
     # Calculate validation loss manually
-    valid_loss = None
     if semantic_trainer.is_main and (steps > 0) and (steps % validation_interval) == 0:  # Example condition for validation
         valid_loss = 0
         unwrapped_model = semantic_trainer.accelerator.unwrap_model(semantic_trainer.train_wrapper)
@@ -172,39 +182,31 @@ def log_fn(logs):
 
         valid_loss = valid_loss.clone()
         valid_loss /= semantic_trainer.average_valid_loss_over_grad_accum_every
-
         semantic_trainer.print(f'{steps}: valid loss {valid_loss}')
+        logger.info(f'{steps}: valid loss {valid_loss}')
+        writer.add_scalar("Validation Loss", valid_loss, steps) # save to tensorboard
         semantic_trainer.accelerator.log({"valid_loss": valid_loss}, step=steps)
 
     if semantic_trainer.is_main and (steps > 0) and (steps % model_save_interval) == 0:
         model_path = str(semantic_trainer.results_folder / f'semantic.transformer.temp.pt')
         semantic_trainer.save(model_path)
-        semantic_trainer.print(f'{steps}: saving model to {str(semantic_trainer.results_folder)}')
+        semantic_trainer.print(f'{steps}: saved model to {str(semantic_trainer.results_folder)}')
+        logger.info(f'{steps}: saved model to {model_path}')
 
-    # Add timestamp for log entries
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # Log to file and TensorBoard
-    with open(log_file_path, 'a') as log_file:
-        if loss is not None:
-            log_file.write(f"[{timestamp}] Step {steps}: Training Loss: {loss}\n")
-            writer.add_scalar("Training Loss", loss, steps)
-
-        if valid_loss is not None:
-            log_file.write(f"[{timestamp}] Step {steps}: Validation Loss: {valid_loss}\n")
-            writer.add_scalar("Validation Loss", valid_loss, steps)
 
 # Measure training time
 start_time = time.time()
 
 # Train the Semantic Transformer
 print("Starting training for the Semantic Transformer...")
+logger.info("Starting training for the Semantic Transformer...")
 semantic_trainer.train(log_fn=log_fn)
 
 # Save the final model explicitly
 save_path = os.path.join(results_folder, f'semantic.transformer.{int(semantic_trainer.steps.item())-1}.final.pt')  # Save final model here
 semantic_trainer.save(save_path)
 print(f"Final model saved to {save_path}")
+logger.info(f"Final model saved to {save_path}")
 
 end_time = time.time()
 training_time = end_time - start_time
@@ -219,3 +221,5 @@ writer.close()
 print(f"Training complete. Checkpoints and logs saved to {results_folder}")
 print(f"Loss logs saved to {log_file_path}")
 print(f"Total training time: {training_time:.2f} seconds")
+logger.info(f"Training complete. Checkpoints and logs saved to {results_folder}")
+logger.info(f"Total training time: {training_time:.2f} seconds")
