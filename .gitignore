@@ -3,3 +3,4 @@ models/
 results/
 boogaloo.yml
 tests/
+logs/
