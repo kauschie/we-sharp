@@ -118,6 +118,7 @@ if train_split is not None and valid_split is not None:
         force_clear_prev_results=False,
 
         batch_size = 1, # can change to 4 to match semantic_transformer, adjust based on GPU memory
+        # data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
         data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
         results_folder=results_folder,  # Specify custom results folder
         save_model_every=1_000_000,  # Disable automatic saving
@@ -133,6 +134,7 @@ else:
         folder=dataset_path,
         force_clear_prev_results=False,
         batch_size = 1, # can change to 4 to match semantic_transformer, adjust based on GPU memory
+        # data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
         data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
         results_folder=results_folder,  # Specify custom results folder
         save_model_every=1_000_000,  # Disable automatic saving
