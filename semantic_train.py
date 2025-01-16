@@ -10,17 +10,44 @@ from audiolm_pytorch import HubertWithKmeans, SemanticTransformer, SemanticTrans
 from audiolm_pytorch.trainer import dict_values_to_device
 from tensorboardX import SummaryWriter
 
+def setup_logger(level=logging.INFO):
+    """
+    Sets up a custom logger with a format similar to logging.basicConfig,
+    forcefully replacing any existing handlers.
+    
+    Args:
+        name (str): Name of the logger.
+        level (int): Logging level (e.g., logging.DEBUG, logging.INFO).
+    
+    Returns:
+        logging.Logger: Configured logger instance.
+    """
+    # Create or get the logger
+    logger = logging.getLogger("semantic_training.log")
+    logger.setLevel(level)
+    
+    # Remove any existing handlers
+    logger.handlers.clear()
+    
+    # File handler
+    file_handler = logging.FileHandler(log_file_path, mode='a')  # Append mode
+    file_handler.setLevel(level)
+    file_formatter = logging.Formatter(
+        '%(asctime)s - %(message)s'
+    )
+    file_handler.setFormatter(file_formatter)
+    logger.addHandler(file_handler)
+
+    # Prevent logs from propagating to the root logger
+    logger.propagate = False
+    
+    return logger
+
 # Configure logging
 log_dir = './logs'
 os.makedirs(log_dir, exist_ok=True)
 log_file_path = os.path.join(log_dir, 'semantic_training.log')
-logging.basicConfig(
-    filename=log_file_path,
-    filemode='a',
-    format='%(asctime)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger()
+logger = setup_logger()
 
 # Paths to models and dataset
 hubert_checkpoint_path = './models/hubert_base_ls960.pt'
@@ -76,7 +103,7 @@ def load_splits():
 train_split, valid_split = load_splits()
 
 # Trainer for the Semantic Transformer
-training_temp = 60
+training_temp = 30
 
 if train_split is not None and valid_split is not None:
     semantic_trainer = SemanticTransformerTrainer(
@@ -182,8 +209,8 @@ def log_fn(logs):
 
         valid_loss = valid_loss.clone()
         valid_loss /= semantic_trainer.average_valid_loss_over_grad_accum_every
-        semantic_trainer.print(f'{steps}: valid loss {valid_loss}')
-        logger.info(f'{steps}: valid loss {valid_loss}')
+        semantic_trainer.print(f'Step {steps}: valid loss {valid_loss}')
+        logger.info(f'Step {steps}: valid loss {valid_loss}')
         writer.add_scalar("Validation Loss", valid_loss, steps) # save to tensorboard
         semantic_trainer.accelerator.log({"valid_loss": valid_loss}, step=steps)
 
