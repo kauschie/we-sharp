@@ -1,11 +1,9 @@
 import os
 import time
-from datetime import datetime
 import signal
 import pickle
 import logging
 import torch
-from torch.utils.data import Dataset
 from audiolm_pytorch import HubertWithKmeans, SemanticTransformer, SemanticTransformerTrainer
 from audiolm_pytorch.trainer import dict_values_to_device
 from tensorboardX import SummaryWriter
@@ -44,7 +42,7 @@ def setup_logger(level=logging.INFO):
     return logger
 
 # Configure logging
-log_dir = './logs'
+log_dir = './logs/sem'
 os.makedirs(log_dir, exist_ok=True)
 log_file_path = os.path.join(log_dir, 'semantic_training.log')
 logger = setup_logger()
@@ -54,9 +52,8 @@ hubert_checkpoint_path = './models/hubert_base_ls960.pt'
 hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
 dataset_path = './dbo'
 results_folder = './results'  # Results directory
-save_path = os.path.join(results_folder, 'semantic_transformer_final.pt')  # Save final model here
-train_split_path = os.path.join(results_folder, 'train_split.pkl')
-valid_split_path = os.path.join(results_folder, 'valid_split.pkl')
+train_split_path = os.path.join(results_folder, 'sem_train_split.pkl')
+valid_split_path = os.path.join(results_folder, 'sem_valid_split.pkl')
 
 # Initialize TensorBoard writer
 writer = SummaryWriter(logdir=log_dir)
@@ -103,7 +100,7 @@ def load_splits():
 train_split, valid_split = load_splits()
 
 # Trainer for the Semantic Transformer
-training_temp = 30
+training_temp = 401
 
 if train_split is not None and valid_split is not None:
     semantic_trainer = SemanticTransformerTrainer(
@@ -111,6 +108,7 @@ if train_split is not None and valid_split is not None:
         wav2vec=wav2vec,  # HubertWithKmeans model
         dataset=train_split,  # Preloaded training dataset
         valid_dataset=valid_split,  # Preloaded validation dataset
+        force_clear_prev_results=False,
         batch_size=4,  # Adjust based on GPU memory
         grad_accum_every=8,  # Gradient accumulation steps
         data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
@@ -124,6 +122,7 @@ else:
         transformer=semantic_transformer,
         wav2vec=wav2vec,  # HubertWithKmeans model
         folder=dataset_path,  # Path to your training data
+        force_clear_prev_results=False,
         batch_size=4,  # Adjust based on GPU memory
         grad_accum_every=8,  # Gradient accumulation steps
         data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
@@ -144,7 +143,7 @@ else:
     logger.info(f"Dataset splits saved: {len(semantic_trainer.ds)} training samples, {len(semantic_trainer.valid_ds)} validation samples.")
 
 # Check for existing checkpoints
-checkpoint_files = [f for f in os.listdir(results_folder) if f.endswith('.pt')]
+checkpoint_files = [f for f in os.listdir(results_folder) if f.endswith('.pt') and 'semantic' in f]
 if checkpoint_files:
     print("Existing checkpoints found:")
     for i, file in enumerate(checkpoint_files):
@@ -215,7 +214,7 @@ def log_fn(logs):
         semantic_trainer.accelerator.log({"valid_loss": valid_loss}, step=steps)
 
     if semantic_trainer.is_main and (steps > 0) and (steps % model_save_interval) == 0:
-        model_path = str(semantic_trainer.results_folder / f'semantic.transformer.temp.pt')
+        model_path = str(semantic_trainer.results_folder / f'semantic.transformer.{steps}.interval.pt')
         semantic_trainer.save(model_path)
         semantic_trainer.print(f'{steps}: saved model to {str(semantic_trainer.results_folder)}')
         logger.info(f'{steps}: saved model to {model_path}')
