@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import signal
 import pickle
@@ -104,14 +105,13 @@ def load_splits():
 train_split, valid_split = load_splits()
 
 # Trainer for the Coarse Transformer
-training_temp = 1000
+training_temp = 10001
 
 if train_split is not None and valid_split is not None:
     coarse_trainer = CoarseTransformerTrainer(
         transformer=coarse_transformer,
         codec=encodec,
         wav2vec=wav2vec,  # HubertWithKmeans model
-
 
         dataset=train_split,  # Preloaded training dataset
         valid_dataset=valid_split,  # Preloaded validation dataset
@@ -173,22 +173,34 @@ if checkpoint_files:
 else:
     logger.info("No checkpoints found. Starting fresh.")
 
+def cleanup_cuda():
+    torch.cuda.empty_cache()
+    print("CUDA memory cache cleared.")
+
+def save_checkpoint(auto_save=False):
+    global coarse_trainer
+    steps = int(coarse_trainer.steps.item())
+
+    if auto_save:
+        term_path = str(coarse_trainer.results_folder / f'coarse.transformer.{steps}.terminated_session.pt')
+        coarse_trainer.save(term_path)
+        logger.info(f"{steps}: Auto-saving model to {term_path}")
+    else:
+        save_prompt = input("Do you want to save the current model and results? (y/n): ").strip().lower()
+        if save_prompt == 'y':
+            term_path = str(coarse_trainer.results_folder / f'coarse.transformer.{steps}.terminated_session.pt')
+            coarse_trainer.save(term_path)
+            logger.info(f"{steps}: Saving model to {term_path}")
+        else:
+            logger.info("Progress not saved.")
+
+
 # Define a signal handler for saving on interrupt
 def handle_interrupt(signal_received, frame):
     print("\nTraining interrupted by user.")
-    save_prompt = input("Do you want to save the current model and results? (y/n): ").strip().lower()
-    steps = int(coarse_trainer.steps.item())
-
-    if save_prompt == 'y':
-        term_path = str(coarse_trainer.results_folder / f'coarse.transformer.{steps}.terminated_session.pt')
-        coarse_trainer.save(term_path)
-        coarse_trainer.print(f"{steps}: saving model to {term_path}")
-        logger.info(f"{steps}: saving model to {term_path}")
-    else:
-        coarse_trainer.print("Progress not saved.")
-        logger.info("Progress not saved.")
-
-    exit(0)
+    save_checkpoint()
+    cleanup_cuda()
+    sys.exit(0)
 
 signal.signal(signal.SIGINT, handle_interrupt)
 
@@ -221,15 +233,15 @@ def log_fn(logs):
         valid_loss = valid_loss.clone()
         valid_loss /= coarse_trainer.average_valid_loss_over_grad_accum_every
 
-        coarse_trainer.print(f'Step {steps}: valid loss {valid_loss}')
+        print(f'Step {steps}: valid loss {valid_loss}')
         logger.info(f'Step {steps}: valid loss {valid_loss}')
         writer.add_scalar("Validation Loss", valid_loss, steps) # save to tensorboard
-        coarse_trainer.accelerator.log({"valid_loss": valid_loss}, step=steps)
+        # coarse_trainer.accelerator.log({"valid_loss": valid_loss}, step=steps)
 
     if coarse_trainer.is_main and (steps > 0) and (steps % model_save_interval) == 0:
         model_path = str(coarse_trainer.results_folder / f'coarse.transformer.{steps}.interval.pt')
         coarse_trainer.save(model_path)
-        coarse_trainer.print(f'{steps}: saved model to {str(coarse_trainer.results_folder)}')
+        print(f'{steps}: saved model to {str(coarse_trainer.results_folder)}')
         logger.info(f'{steps}: saved model to {model_path}')
 
 # Measure training time
@@ -238,7 +250,18 @@ start_time = time.time()
 # Train the Coarse Transformer
 print("Starting training for the Coarse Transformer...")
 logger.info("Starting training for the Coarse Transformer...")
-coarse_trainer.train(log_fn=log_fn)
+
+try:
+    coarse_trainer.train(log_fn=log_fn)
+except RuntimeError as e:
+    if "CUDA error" in str(e):
+        logger.info(f"\nCUDA RuntimeError encountered: {e}")
+        logger.info("Saving checkpoint and attempting cleanup.")
+        save_checkpoint(auto_save=True)  # Save your checkpoint
+        cleanup_cuda()  # Optional: Cleanup CUDA memory
+        sys.exit(1)
+    else:
+        raise   # reraise exception
 
 # Save the final model explicitly
 save_path = os.path.join(results_folder, f'coarse.transformer.{int(coarse_trainer.steps.item())-1}.final.pt')  # Save final model here

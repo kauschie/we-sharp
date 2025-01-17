@@ -70,8 +70,6 @@ semantic_transformer = SemanticTransformer(
     dim=1024,  # Transformer dimensionality
     depth=6,  # Number of transformer layers
     flash_attn=True,  # Use Flash Attention for efficiency
-    ff_dropout=0.1,     # Add some dropout to reduce overfitting
-    attn_dropout=0.1    # Add some dropout to reduce overfitting
 ).cuda()
 
 # Load or create dataset splits
@@ -100,7 +98,7 @@ def load_splits():
 train_split, valid_split = load_splits()
 
 # Trainer for the Semantic Transformer
-training_temp = 401
+training_temp = 1_000
 
 if train_split is not None and valid_split is not None:
     semantic_trainer = SemanticTransformerTrainer(
@@ -110,8 +108,8 @@ if train_split is not None and valid_split is not None:
         valid_dataset=valid_split,  # Preloaded validation dataset
         force_clear_prev_results=False,
         batch_size=4,  # Adjust based on GPU memory
-        grad_accum_every=8,  # Gradient accumulation steps
-        data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
+        # grad_accum_every=8,  # Gradient accumulation steps
+        data_max_length=500,  # Max number of audio samples (24 kHz * 10 seconds)
         num_train_steps=training_temp,  # Reduced number of training steps for timing experiment
         results_folder=results_folder,  # Specify custom results folder
         save_model_every=1_000_000,  # Disable automatic saving
@@ -124,8 +122,8 @@ else:
         folder=dataset_path,  # Path to your training data
         force_clear_prev_results=False,
         batch_size=4,  # Adjust based on GPU memory
-        grad_accum_every=8,  # Gradient accumulation steps
-        data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
+        # grad_accum_every=8,  # Gradient accumulation steps
+        data_max_length=500,  # Max number of audio samples (24 kHz * 10 seconds)
         num_train_steps=training_temp,  # Reduced number of training steps for timing experiment
         results_folder=results_folder,  # Specify custom results folder
         save_model_every=1_000_000,  # Disable automatic saving
@@ -183,8 +181,8 @@ signal.signal(signal.SIGINT, handle_interrupt)
 
 # Define a logging function
 def log_fn(logs):
-    validation_interval = 10
-    model_save_interval = 100
+    validation_interval = 100
+    model_save_interval = 1000
 
     steps = int(semantic_trainer.steps.item()) - 1  # Get the current step from the trainer (trainer adds 1 before calling log function)
     loss = logs.get('loss', None)

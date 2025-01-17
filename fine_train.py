@@ -179,8 +179,8 @@ signal.signal(signal.SIGINT, handle_interrupt)
 
 # Define a logging function
 def log_fn(logs):
-    validation_interval = 10
-    model_save_interval = 100
+    validation_interval = 100
+    model_save_interval = 1000
 
     steps = int(fine_trainer.steps.item()) - 1  # Get the current step from the trainer (trainer adds 1 before calling log function)
     loss = logs.get('loss', None)
