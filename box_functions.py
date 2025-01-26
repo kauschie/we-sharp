@@ -1,5 +1,7 @@
 import os
 from boxsdk.exception import BoxAPIException
+from boxsdk import Client
+from boxsdk import JWTAuth
 
 # Get ALL files from a box folder
 # Allows for more than 100 files to be searched
