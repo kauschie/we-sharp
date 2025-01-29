@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import signal
 import pickle
@@ -14,7 +15,6 @@ def setup_logger(level=logging.INFO):
     forcefully replacing any existing handlers.
     
     Args:
-        name (str): Name of the logger.
         level (int): Logging level (e.g., logging.DEBUG, logging.INFO).
     
     Returns:
@@ -46,11 +46,12 @@ log_dir = './logs/sem'
 os.makedirs(log_dir, exist_ok=True)
 log_file_path = os.path.join(log_dir, 'semantic_training.log')
 logger = setup_logger()
+logger.info(f"Logger initiated, Semantic Trainer Program Running")
 
 # Paths to models and dataset
 hubert_checkpoint_path = './models/hubert_base_ls960.pt'
 hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
-dataset_path = './dbo'
+dataset_path = "/mnt/c/Users/mkaus/Downloads/The_Magic_of_MIDI/processed_wav"
 results_folder = './results'  # Results directory
 train_split_path = os.path.join(results_folder, 'sem_train_split.pkl')
 valid_split_path = os.path.join(results_folder, 'sem_valid_split.pkl')
@@ -65,10 +66,12 @@ wav2vec = HubertWithKmeans(
 ).cuda()
 
 # Define and initialize the Semantic Transformer
+temp_dim = 1024
+temp_depth = 6
 semantic_transformer = SemanticTransformer(
     num_semantic_tokens=wav2vec.codebook_size,  # From HubertWithKmeans
-    dim=1024,  # Transformer dimensionality
-    depth=6,  # Number of transformer layers
+    dim=temp_dim,  # 1024 Transformer dimensionality
+    depth=temp_depth,  # 6 Number of transformer layers
     flash_attn=True,  # Use Flash Attention for efficiency
 ).cuda()
 
@@ -98,9 +101,15 @@ def load_splits():
 train_split, valid_split = load_splits()
 
 # Trainer for the Semantic Transformer
-training_temp = 1_000
+training_max = 10001
+temp_max_length = 240000
 
+
+logger.info(f"Transformers initiated with the following parameters:")
 if train_split is not None and valid_split is not None:
+    # use dataset args
+    logger.info(f"Using Previous training dataset: {train_split_path}")
+    logger.info(f"Using Previous validation dataset: {valid_split_path}")
     semantic_trainer = SemanticTransformerTrainer(
         transformer=semantic_transformer,
         wav2vec=wav2vec,  # HubertWithKmeans model
@@ -109,13 +118,16 @@ if train_split is not None and valid_split is not None:
         force_clear_prev_results=False,
         batch_size=4,  # Adjust based on GPU memory
         # grad_accum_every=8,  # Gradient accumulation steps
-        data_max_length=500,  # Max number of audio samples (24 kHz * 10 seconds)
-        num_train_steps=training_temp,  # Reduced number of training steps for timing experiment
+        # data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
+        data_max_length_seconds=60*5,  # Max number of audio samples (24 kHz * 10 seconds)
+        num_train_steps=training_max,  # Reduced number of training steps for timing experiment
         results_folder=results_folder,  # Specify custom results folder
         save_model_every=1_000_000,  # Disable automatic saving
         save_results_every=1_000_000  # Disable automatic saving
     )
 else:
+    ## use folder arg
+    logger.info(f"Generating/using a random new dataset: {dataset_path}")
     semantic_trainer = SemanticTransformerTrainer(
         transformer=semantic_transformer,
         wav2vec=wav2vec,  # HubertWithKmeans model
@@ -123,8 +135,9 @@ else:
         force_clear_prev_results=False,
         batch_size=4,  # Adjust based on GPU memory
         # grad_accum_every=8,  # Gradient accumulation steps
-        data_max_length=500,  # Max number of audio samples (24 kHz * 10 seconds)
-        num_train_steps=training_temp,  # Reduced number of training steps for timing experiment
+        # data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
+        data_max_length_seconds=60*5,  # Max number of audio samples (24 kHz * 10 seconds)
+        num_train_steps=training_max,  # Reduced number of training steps for timing experiment
         results_folder=results_folder,  # Specify custom results folder
         save_model_every=1_000_000,  # Disable automatic saving
         save_results_every=1_000_000  # Disable automatic saving
@@ -139,6 +152,13 @@ else:
         pickle.dump(semantic_trainer.valid_ds, f)
     print(f"Dataset splits saved: {len(semantic_trainer.ds)} training samples, {len(semantic_trainer.valid_ds)} validation samples.")
     logger.info(f"Dataset splits saved: {len(semantic_trainer.ds)} training samples, {len(semantic_trainer.valid_ds)} validation samples.")
+
+logger.info(f"batch_size: {semantic_trainer.batch_size}")
+logger.info(f"data_max_length: {temp_max_length}")
+logger.info(f"dim: {temp_dim}")
+logger.info(f"depth: {temp_depth}")
+logger.info(f"num_semantic_tokens: {semantic_transformer.num_semantic_tokens}")
+
 
 # Check for existing checkpoints
 checkpoint_files = [f for f in os.listdir(results_folder) if f.endswith('.pt') and 'semantic' in f]
@@ -160,22 +180,34 @@ if checkpoint_files:
 else:
     logger.info("No checkpoints found. Starting fresh.")
 
+def cleanup_cuda():
+    torch.cuda.empty_cache()
+    print("CUDA memory cache cleared.")
+
+def save_checkpoint(auto_save=False):
+    global semantic_trainer
+    steps = int(semantic_trainer.steps.item())
+
+    if auto_save:
+        term_path = str(semantic_trainer.results_folder / f'semantic.transformer.{steps}.terminated_session.pt')
+        semantic_trainer.save(term_path)
+        logger.info(f"{steps}: Auto-saving model to {term_path}")
+    else:
+        save_prompt = input("Do you want to save the current model and results? (y/n): ").strip().lower()
+        if save_prompt == 'y':
+            term_path = str(semantic_trainer.results_folder / f'semantic.transformer.{steps}.terminated_session.pt')
+            semantic_trainer.save(term_path)
+            logger.info(f"{steps}: Saving model to {term_path}")
+        else:
+            logger.info("Progress not saved.")
+
+
 # Define a signal handler for saving on interrupt
 def handle_interrupt(signal_received, frame):
     print("\nTraining interrupted by user.")
-    save_prompt = input("Do you want to save the current model and results? (y/n): ").strip().lower()
-    steps = int(semantic_trainer.steps.item())
-
-    if save_prompt == 'y':
-        term_path = str(semantic_trainer.results_folder / f'semantic.transformer.{steps}.terminated_session.pt')
-        semantic_trainer.save(term_path)
-        semantic_trainer.print(f"{steps}: saving model to {term_path}")
-        logger.info(f"{steps}: saving model to {term_path}")
-    else:
-        semantic_trainer.print("Progress not saved.")
-        logger.info("Progress not saved.")
-
-    exit(0)
+    save_checkpoint()
+    cleanup_cuda()
+    sys.exit(0)
 
 signal.signal(signal.SIGINT, handle_interrupt)
 
@@ -206,15 +238,17 @@ def log_fn(logs):
 
         valid_loss = valid_loss.clone()
         valid_loss /= semantic_trainer.average_valid_loss_over_grad_accum_every
-        semantic_trainer.print(f'Step {steps}: valid loss {valid_loss}')
+        # semantic_trainer.print(f'Step {steps}: valid loss {valid_loss}')
+        print(f'Step {steps}: valid loss {valid_loss}')
         logger.info(f'Step {steps}: valid loss {valid_loss}')
         writer.add_scalar("Validation Loss", valid_loss, steps) # save to tensorboard
-        semantic_trainer.accelerator.log({"valid_loss": valid_loss}, step=steps)
+        # semantic_trainer.accelerator.log({"valid_loss": valid_loss}, step=steps)
 
     if semantic_trainer.is_main and (steps > 0) and (steps % model_save_interval) == 0:
         model_path = str(semantic_trainer.results_folder / f'semantic.transformer.{steps}.interval.pt')
         semantic_trainer.save(model_path)
-        semantic_trainer.print(f'{steps}: saved model to {str(semantic_trainer.results_folder)}')
+        # semantic_trainer.print(f'{steps}: saved model to {str(semantic_trainer.results_folder)}')
+        print(f'{steps}: saved model to {str(semantic_trainer.results_folder)}')
         logger.info(f'{steps}: saved model to {model_path}')
 
 
@@ -224,7 +258,18 @@ start_time = time.time()
 # Train the Semantic Transformer
 print("Starting training for the Semantic Transformer...")
 logger.info("Starting training for the Semantic Transformer...")
-semantic_trainer.train(log_fn=log_fn)
+
+try:
+    semantic_trainer.train(log_fn=log_fn)
+except RuntimeError as e:
+    if "CUDA error" in str(e):
+        logger.info(f"\nCUDA RuntimeError encountered: {e}")
+        logger.info("Saving checkpoint and attempting cleanup.")
+        save_checkpoint(auto_save=True)  # Save your checkpoint
+        cleanup_cuda()  # Optional: Cleanup CUDA memory
+        sys.exit(1)
+    else:
+        raise   # reraise exception
 
 # Save the final model explicitly
 save_path = os.path.join(results_folder, f'semantic.transformer.{int(semantic_trainer.steps.item())-1}.final.pt')  # Save final model here

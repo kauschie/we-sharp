@@ -2,8 +2,6 @@ dbo/
 models/
 results/
 boogaloo.yml
-tests/
 logs/
 bak_*/
 *.wav
-fixes/
