@@ -1,0 +1,8 @@
+project/
+│
+├── data_preparation.py  # 数据准备
+├── model_setup.py       # 模型初始化
+├── train_model.py       # 模型训练
+├── test_model.py        # 模型测试
+├── utils.py             # 辅助工具（可选，用于通用功能）
+└── main.py              # 主入口脚本
