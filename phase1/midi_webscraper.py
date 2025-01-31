@@ -1,14 +1,14 @@
 import os
+import time
+import shutil
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import time
-import shutil
 from boxsdk import Client, JWTAuth
 from selenium.webdriver.support.ui import Select
 
-def upload_midi_to_box():
+def upload_midi_to_box(midi_file_path):
     # Initialize Box client
     auth = JWTAuth.from_settings_file('./keypair.json')
     client = Client(auth)
@@ -16,22 +16,13 @@ def upload_midi_to_box():
     # Box folder ID (music/midi-p1/orig)
     box_root_folder_id = '303861755974'
 
-    # Path to the MIDI file
-    midi_folder_path = './midi'
-    midi_files = os.listdir(midi_folder_path)
-
-    if not midi_files:
-        raise FileNotFoundError(f"No files found in the directory: {midi_folder_path}")
-
-    midi_file_name = midi_files[0]  # Assume a single file exists
-    client.folder(box_root_folder_id).upload_stream(file_stream, midi_file_name)
-
     # Upload the MIDI file
     with open(midi_file_path, 'rb') as file_stream:
+        midi_file_name = os.path.basename(midi_file_path)
         print(f"Uploading '{midi_file_name}' to Box...")
         client.folder(folder_id=box_root_folder_id).upload_stream(file_stream, midi_file_name)
         print(f"'{midi_file_name}' uploaded successfully.")
-        
+
 def download_midi_file(download_directory, target_directory):
     # Set up Chrome options
     chrome_options = webdriver.ChromeOptions()
@@ -40,8 +31,8 @@ def download_midi_file(download_directory, target_directory):
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
         "safebrowsing.enabled": True,
-        "safebrowsing.disable_download_protection": True,  # Add this
-        "profile.default_content_setting_values.automatic_downloads": 1  # Add this
+        "safebrowsing.disable_download_protection": True,
+        "profile.default_content_setting_values.automatic_downloads": 1 
     }
     chrome_options.add_experimental_option("prefs", prefs)
 
@@ -68,9 +59,10 @@ def download_midi_file(download_directory, target_directory):
         length_select = Select(driver.find_element(By.NAME, "loop-length"))
 
         # Select by visible text
-        length_select.select_by_visible_text("16")
+        length_select.select_by_visible_text("64")
         
         time.sleep(1)
+        
         
         # Wait for and click the generate button
         generate_button = WebDriverWait(driver, 10).until(
@@ -109,7 +101,7 @@ def download_midi_file(download_directory, target_directory):
 
         for attempt in range(max_retries):
             try:
-                upload_midi_to_box()
+                upload_midi_to_box(target_path)
                 print(f"Successfully uploaded to Box on attempt {attempt + 1}")
                 break
             except Exception as e:
@@ -132,12 +124,34 @@ def download_midi_file(download_directory, target_directory):
         # Close the browser
         driver.quit()
 
-# Directories
-download_dir = os.path.expanduser("~/Downloads")
-target_dir = r"C:/Users/jst1b/source/repos/we-sharp/phase1/midi"
+if __name__ == "__main__":
+    # Record the start time
+    start_time = time.time()
 
-# Ensure target directory exists
-os.makedirs(target_dir, exist_ok=True)
+    # Directories
+    download_dir = os.path.expanduser("~/Downloads")
+    target_dir = r"C:/Users/jst1b/source/repos/we-sharp/we-sharp/phase1/midi" # Replace with your target directory
 
-# Run the download script
-download_midi_file(download_dir, target_dir)
+    # Ensure target directory exists
+    os.makedirs(target_dir, exist_ok=True)
+
+    while True:
+        # Run the download script
+        download_midi_file(download_dir, target_dir)
+
+         # Delete the MIDI file
+        if os.path.exists(target_dir):
+            # Loop through all files and subdirectories
+            for filename in os.listdir(target_dir):
+                file_path = os.path.join(target_dir, filename)
+                
+                # If it's a file, remove it
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.remove(file_path)
+
+    # Record the end time
+    end_time = time.time()
+
+    # Calculate and print the elapsed time
+    elapsed_time = end_time - start_time
+    print(f"Elapsed time: {elapsed_time:.2f} seconds")
