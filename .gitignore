@@ -5,3 +5,7 @@ boogaloo.yml
 logs/
 bak_*/
 *.wav
+p2-data/*
+logs_bak/
+results_bak/
+midi-p2-partial.tar.gz
