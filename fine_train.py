@@ -1,4 +1,6 @@
 import os
+import sys
+import shutil
 import time
 import signal
 import pickle
@@ -45,11 +47,13 @@ log_dir = './logs/fine'
 os.makedirs(log_dir, exist_ok=True)
 log_file_path = os.path.join(log_dir, 'fine_training.log')
 logger = setup_logger()
+logger.info(f"Logger initiated, Fine Trainer Program Running")
+
 
 # Paths to models and dataset
 hubert_checkpoint_path = './models/hubert_base_ls960.pt'
 hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
-dataset_path = './dbo'
+dataset_path = 'p2-data/smaller_test'
 results_folder = './results'  # Results directory
 train_split_path = os.path.join(results_folder, 'fine_train_split.pkl')
 valid_split_path = os.path.join(results_folder, 'fine_valid_split.pkl')
@@ -61,12 +65,17 @@ writer = SummaryWriter(logdir=log_dir)
 encodec = EncodecWrapper()
 
 # Define and initialize the Fine Transformer
+temp_dim = 512
+temp_depth = 6
+temp_coarse_quantizers = 3
+temp_fine_quantizers = 5
+temp_codebook_size = 1024
 fine_transformer = FineTransformer(
-    num_coarse_quantizers = 3,
-    num_fine_quantizers = 5,
-    codebook_size = 1024,
-    dim = 512,
-    depth = 6,
+    num_coarse_quantizers = temp_coarse_quantizers,
+    num_fine_quantizers = temp_fine_quantizers,
+    codebook_size = temp_codebook_size,
+    dim = temp_dim,
+    depth = temp_depth,
     flash_attn = True,
 ).cuda()
 
@@ -96,7 +105,8 @@ def load_splits():
 train_split, valid_split = load_splits()
 
 # Trainer for the Fine Transformer
-training_temp = 401
+training_max = 10001
+temp_data_max_length_seconds = 2
 
 if train_split is not None and valid_split is not None:
     fine_trainer = FineTransformerTrainer(
@@ -106,12 +116,13 @@ if train_split is not None and valid_split is not None:
         valid_dataset=valid_split,  # Preloaded validation dataset
         force_clear_prev_results=False,
         batch_size = 1, # can change to 4 to match semantic_transformer, adjust based on GPU memory
-        data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
+        # data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
+        data_max_length_seconds=temp_data_max_length_seconds,
         results_folder=results_folder,  # Specify custom results folder
         save_model_every=1_000_000,  # Disable automatic saving
         save_results_every=1_000_000,  # Disable automatic saving
-        # grad_accum_every=8,  # Gradient accumulation steps
-        num_train_steps=training_temp  # Reduced number of training steps for timing experiment
+        grad_accum_every=32,  # Gradient accumulation steps
+        num_train_steps=training_max  # Reduced number of training steps for timing experiment
     )
 else:
     fine_trainer = FineTransformerTrainer(
@@ -120,12 +131,13 @@ else:
         folder=dataset_path,
         force_clear_prev_results=False,
         batch_size = 1, # can change to 4 to match semantic_transformer, adjust based on GPU memory
-        data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
+        # data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
+        data_max_length_seconds=temp_data_max_length_seconds,
         results_folder=results_folder,  # Specify custom results folder
         save_model_every=1_000_000,  # Disable automatic saving
         save_results_every=1_000_000,  # Disable automatic saving
-        # grad_accum_every=8,  # Gradient accumulation steps
-        num_train_steps=training_temp  # Reduced number of training steps for timing experiment
+        grad_accum_every=32,  # Gradient accumulation steps
+        num_train_steps=training_max  # Reduced number of training steps for timing experiment
     )
 
     # Save the generated dataset splits
@@ -137,6 +149,16 @@ else:
         pickle.dump(fine_trainer.valid_ds, f)
     print(f"Dataset splits saved: {len(fine_trainer.ds)} training samples, {len(fine_trainer.valid_ds)} validation samples.")
     logger.info(f"Dataset splits saved: {len(fine_trainer.ds)} training samples, {len(fine_trainer.valid_ds)} validation samples.")
+
+logger.info(f"batch_size: {fine_trainer.batch_size}")
+logger.info(f"grad_accum_every: {fine_trainer.grad_accum_every}")
+logger.info(f"data_max_length_seconds: {temp_data_max_length_seconds}")
+# logger.info(f"data_max_length: {temp_max_length}")
+logger.info(f"dim: {temp_dim}")
+logger.info(f"depth: {temp_depth}")
+logger.info(f"coarse quantizers: {temp_coarse_quantizers}")
+logger.info(f"fine quantizers: {temp_fine_quantizers}")
+logger.info(f"codebook size: {temp_codebook_size}")
 
 # Check for existing checkpoints
 checkpoint_files = [f for f in os.listdir(results_folder) if f.endswith('.pt') and 'fine' in f]
@@ -158,24 +180,54 @@ if checkpoint_files:
 else:
     logger.info("No checkpoints found. Starting fresh.")
 
+def cleanup_cuda():
+    torch.cuda.empty_cache()
+    print("CUDA memory cache cleared.")
+
+def save_checkpoint(auto_save=False):
+    global fine_trainer
+    steps = int(fine_trainer.steps.item())
+
+    if auto_save:
+        term_path = str(fine_trainer.results_folder / f'fine.transformer.{steps}.terminated_session.pt')
+        fine_trainer.save(term_path)
+        logger.info(f"{steps}: Auto-saving model to {term_path}")
+    else:
+        save_prompt = input("Do you want to save the current model and results? (y/n): ").strip().lower()
+        if save_prompt == 'y':
+            term_path = str(fine_trainer.results_folder / f'fine.transformer.{steps}.terminated_session.pt')
+            fine_trainer.save(term_path)
+            logger.info(f"{steps}: Saving model to {term_path}")
+        else:
+            logger.info("Progress not saved.")
+
+
 # Define a signal handler for saving on interrupt
 def handle_interrupt(signal_received, frame):
     print("\nTraining interrupted by user.")
-    save_prompt = input("Do you want to save the current model and results? (y/n): ").strip().lower()
-    steps = int(fine_trainer.steps.item())
-
-    if save_prompt == 'y':
-        term_path = str(fine_trainer.results_folder / f'fine.transformer.{steps}.terminated_session.pt')
-        fine_trainer.save(term_path)
-        fine_trainer.print(f"{steps}: saving model to {term_path}")
-        logger.info(f"{steps}: saving model to {term_path}")
-    else:
-        fine_trainer.print("Progress not saved.")
-        logger.info("Progress not saved.")
-
-    exit(0)
+    save_checkpoint()
+    cleanup_cuda()
+    sys.exit(0)
 
 signal.signal(signal.SIGINT, handle_interrupt)
+
+def handle_exception(e, move_bad_file=None):
+    """Handles failure by logging, saving a checkpoint, cleaning up CUDA, and exiting."""
+    logger.info(f"\nError encountered: {e}")
+    logger.info("Saving checkpoint and attempting cleanup.")
+    
+    save_checkpoint(auto_save=True)  # Save your model
+    cleanup_cuda()  # Cleanup CUDA memory
+
+    if move_bad_file:
+        bad_dir = "p2-data/bad/"
+        os.makedirs(bad_dir, exist_ok=True)  # Ensure the directory exists
+        bad_file_path = os.path.join(bad_dir, os.path.basename(move_bad_file))
+        shutil.move(move_bad_file, bad_file_path)
+        logger.info(f"Moved bad file to {bad_file_path}")
+
+    sys.exit(1)  # Exit with failure code
+
 
 # Define a logging function
 def log_fn(logs):
@@ -223,7 +275,25 @@ start_time = time.time()
 # Train the Fine Transformer
 print("Starting training for the Fine Transformer...")
 logger.info("Starting training for the Fine Transformer...")
-fine_trainer.train(log_fn=log_fn)
+
+
+try:
+    fine_trainer.train(log_fn=log_fn)
+except RuntimeError as e:
+    if "CUDA error" in str(e):
+        handle_exception(e)
+    else:
+        raise   # reraise exception
+except AssertionError as e:
+    if "empty" in str(e):
+        bad_file = None
+        message = str(e)
+        if "(" in message and ")" in message:
+            bad_file = message.split("(")[1].split(")")[0] # get file path inside parens
+            handle_exception(e, move_bad_file=bad_file)
+
+    else:
+        raise
 
 # Save the final model explicitly
 save_path = os.path.join(results_folder, f'fine.transformer.{int(fine_trainer.steps.item())-1}.final.pt')  # Save final model here
