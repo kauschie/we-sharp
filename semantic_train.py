@@ -124,7 +124,7 @@ train_split, valid_split = load_splits()
 # Trainer for the Semantic Transformer
 training_max = 10001
 # temp_max_length = 240000
-temp_data_max_length_seconds = 10
+temp_data_max_length_seconds = 2
 
 logger.info(f"Transformers initiated with the following parameters:")
 if train_split is not None and valid_split is not None:
