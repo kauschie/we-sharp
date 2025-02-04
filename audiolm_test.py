@@ -26,7 +26,8 @@ wav2vec = HubertWithKmeans(
 semantic_transformer = SemanticTransformer(
     num_semantic_tokens=wav2vec.codebook_size,  # From HubertWithKmeans
     dim=1024,  # Transformer dimensionality
-    depth=6,  # Number of transformer layers
+    depth=12,  # Number of transformer layers
+    heads=16,
     flash_attn=True,  # Use Flash Attention for efficiency
 ).cuda()
 semantic_transformer.load(sem_path)
