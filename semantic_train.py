@@ -69,6 +69,9 @@ wav2vec = HubertWithKmeans(
     use_mert=True
 ).cuda()
 
+print(f"wav2vec.target_sample_hz: {wav2vec.target_sample_hz}")
+logger.info(f"wav2vec.target_sample_hz: {wav2vec.target_sample_hz}")
+
 # Define and initialize the Semantic Transformer
 
 """
@@ -122,30 +125,32 @@ def load_splits():
     else:
         return None, None
 
-train_split, valid_split = load_splits()
+# train_split, valid_split = load_splits()
 
 # Trainer for the Semantic Transformer
 training_max = 10001
-# temp_max_length = 240000
-temp_data_max_length_seconds = 2
+temp_max_length = 16000*2
+# temp_data_max_length_seconds = 2
 
+train_split = None
+valid_split = None
 logger.info(f"Transformers initiated with the following parameters:")
 if train_split is not None and valid_split is not None:
     # use dataset args
     logger.info(f"Using Previous training dataset: {train_split_path}")
     logger.info(f"Using Previous validation dataset: {valid_split_path}")
     semantic_trainer = SemanticTransformerTrainer(
-        dataset=train_split,  # Preloaded training dataset
-        valid_dataset=valid_split,  # Preloaded validation dataset
-        
+        # dataset=train_split,  # Preloaded training dataset
+        # valid_dataset=valid_split,  # Preloaded validation dataset
+        folder=dataset_path,  # Path to your training data
         transformer=semantic_transformer,
         wav2vec=wav2vec,  # HubertWithKmeans model
         force_clear_prev_results=False,
         batch_size=1,  # Adjust based on GPU memory
         grad_accum_every=32,  # Gradient accumulation steps
-        # data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
+        data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
         # data_max_length_seconds=60*2,  # Max number of audio samples (24 kHz * 10 seconds)
-        data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
+        # data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
         num_train_steps=training_max,  # Reduced number of training steps for timing experiment
         results_folder=results_folder,  # Specify custom results folder
         save_model_every=1_000_000,  # Disable automatic saving
@@ -161,9 +166,9 @@ else:
         force_clear_prev_results=False,
         batch_size=1,  # Adjust based on GPU memory
         grad_accum_every=32,  # Gradient accumulation steps
-        # data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
+        data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
         # data_max_length_seconds=60*2,  # Max number of audio samples (24 kHz * 10 seconds)
-        data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
+        # data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
         num_train_steps=training_max,  # Reduced number of training steps for timing experiment
         results_folder=results_folder,  # Specify custom results folder
         save_model_every=1_000_000,  # Disable automatic saving
@@ -182,8 +187,8 @@ else:
 
 logger.info(f"batch_size: {semantic_trainer.batch_size}")
 logger.info(f"grad_accum_every: {semantic_trainer.grad_accum_every}")
-logger.info(f"data_max_length_seconds: {temp_data_max_length_seconds}")
-# logger.info(f"data_max_length: {temp_max_length}")
+# logger.info(f"data_max_length_seconds: {temp_data_max_length_seconds}")
+logger.info(f"data_max_length: {temp_max_length}")
 logger.info(f"dim: {temp_dim}")
 logger.info(f"depth: {temp_depth}")
 logger.info(f"heads: {temp_heads}")

@@ -64,9 +64,15 @@ writer = SummaryWriter(logdir=log_dir)
 
 # Initialize HubertWithKmeans
 wav2vec = HubertWithKmeans(
-    checkpoint_path=hubert_checkpoint_path,
-    kmeans_path=hubert_kmeans_path
+    # checkpoint_path=hubert_checkpoint_path,
+    checkpoint_path=None,
+    kmeans_path=hubert_kmeans_path,
+    use_mert=True
 ).cuda()
+
+print(f"wav2vec.target_sample_hz: {wav2vec.target_sample_hz}")
+logger.info(f"wav2vec.target_sample_hz: {wav2vec.target_sample_hz}")
+
 
 # Define and initialize the Neural Audio Codec
 encodec = EncodecWrapper()
@@ -82,7 +88,7 @@ coarse_transformer = CoarseTransformer(
     num_coarse_quantizers = temp_coarse_quantizers,
     dim = temp_dim,
     depth = temp_depth,
-    flash_attn = True,
+    # flash_attn = True,
 ).cuda()
 
 # Load or create dataset splits
@@ -108,12 +114,15 @@ def load_splits():
     else:
         return None, None
 
-train_split, valid_split = load_splits()
+# train_split, valid_split = load_splits()
 
 # Trainer for the Coarse Transformer
 training_max = 10001
-temp_data_max_length_seconds = 2
+# temp_data_max_length_seconds = 2
+temp_max_length = 24000 * 2
 
+train_split = None
+valid_split = None
 if train_split is not None and valid_split is not None:
     logger.info(f"Using Previous training dataset: {train_split_path}")
     logger.info(f"Using Previous validation dataset: {valid_split_path}")
@@ -129,8 +138,8 @@ if train_split is not None and valid_split is not None:
 
         batch_size = 1, # can change to 4 to match semantic_transformer, adjust based on GPU memory
         grad_accum_every=32,  # Gradient accumulation steps
-        # data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
-        data_max_length_seconds=temp_data_max_length_seconds,
+        data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
+        # data_max_length_seconds=temp_data_max_length_seconds,
         results_folder=results_folder,  # Specify custom results folder
         save_model_every=1_000_000,  # Disable automatic saving
         save_results_every=1_000_000,  # Disable automatic saving
@@ -145,8 +154,8 @@ else:
         force_clear_prev_results=False,
         batch_size = 1, # can change to 4 to match semantic_transformer, adjust based on GPU memory
         grad_accum_every=32,  # Gradient accumulation steps
-        # data_max_length=240000,  # Max number of audio samples (24 kHz * 10 seconds)
-        data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
+        data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
+        # data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
         results_folder=results_folder,  # Specify custom results folder
         save_model_every=1_000_000,  # Disable automatic saving
         save_results_every=1_000_000,  # Disable automatic saving
@@ -165,8 +174,8 @@ else:
 
 logger.info(f"batch_size: {coarse_trainer.batch_size}")
 logger.info(f"grad_accum_every: {coarse_trainer.grad_accum_every}")
-logger.info(f"data_max_length_seconds: {temp_data_max_length_seconds}")
-# logger.info(f"data_max_length: {temp_max_length}")
+# logger.info(f"data_max_length_seconds: {temp_data_max_length_seconds}")
+logger.info(f"data_max_length: {temp_max_length}")
 logger.info(f"dim: {temp_dim}")
 logger.info(f"depth: {temp_depth}")
 logger.info(f"coarse quantizers: {temp_coarse_quantizers}")
