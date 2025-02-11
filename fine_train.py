@@ -53,7 +53,7 @@ logger.info(f"Logger initiated, Fine Trainer Program Running")
 # Paths to models and dataset
 hubert_checkpoint_path = './models/hubert_base_ls960.pt'
 hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
-dataset_path = 'p2-data/smaller_test'
+dataset_path = "./p2-data/micro_test" # 24kHz version for EnCodec
 results_folder = './results'  # Results directory
 train_split_path = os.path.join(results_folder, 'fine_train_split.pkl')
 valid_split_path = os.path.join(results_folder, 'fine_valid_split.pkl')
@@ -105,7 +105,7 @@ def load_splits():
 train_split, valid_split = load_splits()
 
 # Trainer for the Fine Transformer
-training_max = 10001
+training_max = 15001
 temp_data_max_length_seconds = 2
 
 if train_split is not None and valid_split is not None:

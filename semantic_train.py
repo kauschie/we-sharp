@@ -53,7 +53,7 @@ logger.info(f"Logger initiated, Semantic Trainer Program Running")
 hubert_checkpoint_path = './models/hubert_base_ls960.pt'
 hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
 # dataset_path = "p2-data/processed_wav"
-dataset_path = "p2-data/small_test"
+dataset_path = "./p2-data/micro_test_16khz"
 results_folder = './results'  # Results directory
 train_split_path = os.path.join(results_folder, 'sem_train_split.pkl')
 valid_split_path = os.path.join(results_folder, 'sem_valid_split.pkl')
@@ -63,8 +63,10 @@ writer = SummaryWriter(logdir=log_dir)
 
 # Initialize HubertWithKmeans
 wav2vec = HubertWithKmeans(
-    checkpoint_path=hubert_checkpoint_path,
-    kmeans_path=hubert_kmeans_path
+    # checkpoint_path=hubert_checkpoint_path,
+    checkpoint_path=None,
+    kmeans_path=hubert_kmeans_path,
+    use_mert=True
 ).cuda()
 
 # Define and initialize the Semantic Transformer
@@ -139,8 +141,8 @@ if train_split is not None and valid_split is not None:
         transformer=semantic_transformer,
         wav2vec=wav2vec,  # HubertWithKmeans model
         force_clear_prev_results=False,
-        batch_size=4,  # Adjust based on GPU memory
-        grad_accum_every=16,  # Gradient accumulation steps
+        batch_size=1,  # Adjust based on GPU memory
+        grad_accum_every=32,  # Gradient accumulation steps
         # data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
         # data_max_length_seconds=60*2,  # Max number of audio samples (24 kHz * 10 seconds)
         data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
@@ -157,8 +159,8 @@ else:
         transformer=semantic_transformer,
         wav2vec=wav2vec,  # HubertWithKmeans model
         force_clear_prev_results=False,
-        batch_size=4,  # Adjust based on GPU memory
-        grad_accum_every=16,  # Gradient accumulation steps
+        batch_size=1,  # Adjust based on GPU memory
+        grad_accum_every=32,  # Gradient accumulation steps
         # data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
         # data_max_length_seconds=60*2,  # Max number of audio samples (24 kHz * 10 seconds)
         data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
@@ -259,7 +261,7 @@ def handle_exception(e, move_bad_file=None):
 # Define a logging function
 def log_fn(logs):
     validation_interval = 100
-    model_save_interval = 5000
+    model_save_interval = 1000
 
     steps = int(semantic_trainer.steps.item()) - 1  # Get the current step from the trainer (trainer adds 1 before calling log function)
     loss = logs.get('loss', None)

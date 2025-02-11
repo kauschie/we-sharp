@@ -9,17 +9,24 @@ import torchaudio
 
 hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
 hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
-sem_path = "./results/semantic.transformer.400.final.pt"
-coarse_path = "./results/coarse.transformer.816.terminated_session.pt"
-fine_path = "./results/fine.transformer.333.terminated_session.pt"
+sem_path = "./results/semantic.transformer.101.terminated_session.pt"
+coarse_path = "./results/coarse.transformer.419.terminated_session.pt"
+fine_path = "./results/fine.transformer.101.terminated_session.pt"
 
 # Define and initialize the Neural Audio Codec
 encodec = EncodecWrapper()
 
 # Initialize HubertWithKmeans
+# wav2vec = HubertWithKmeans(
+#     checkpoint_path=hubert_checkpoint_path,
+#     kmeans_path=hubert_kmeans_path
+# ).cuda()
+
 wav2vec = HubertWithKmeans(
-    checkpoint_path=hubert_checkpoint_path,
-    kmeans_path=hubert_kmeans_path
+    # checkpoint_path=hubert_checkpoint_path,
+    checkpoint_path=None,
+    kmeans_path=hubert_kmeans_path,
+    use_mert=True
 ).cuda()
 
 # Define and initialize the Semantic Transformer
@@ -59,48 +66,52 @@ audiolm = AudioLM(
     codec = encodec,
     semantic_transformer = semantic_transformer,
     coarse_transformer = coarse_transformer,
-    fine_transformer = fine_transformer
+    fine_transformer = fine_transformer,
+    unique_consecutive=False
 )
 
 # Generate audio using AudioLM
 generated_wave = audiolm(batch_size=1)
 
 # Check the shape of the generated wave before processing
-print(f"Shape of generated_wave before concatenation: {len(generated_wave) if isinstance(generated_wave, list) else generated_wave.shape}")
+# print(f"Shape of generated_wave before concatenation: {len(generated_wave) if isinstance(generated_wave, list) else generated_wave.shape}")
 
 # Concatenate the list of 1D tensors into a single 1D tensor
-if isinstance(generated_wave, list):
-    generated_wave = torch.cat(generated_wave, dim=0)
+# if isinstance(generated_wave, list):
+#     generated_wave = torch.cat(generated_wave, dim=0)
 
 # Check the shape after concatenation
-print(f"Shape of generated_wave after concatenation: {generated_wave.shape}")
+# print(f"Shape of generated_wave after concatenation: {generated_wave.shape}")
 
 # Move the tensor to CPU for saving
-generated_wave = generated_wave.detach().cpu()
+# generated_wave = generated_wave.detach().cpu()
 
 # Check the shape after moving to CPU
-print(f"Shape of generated_wave after moving to CPU: {generated_wave.shape}")
+# print(f"Shape of generated_wave after moving to CPU: {generated_wave.shape}")
 
 # Normalize the waveform to the range [-1, 1]
 # normalized_wave = generated_wave / torch.max(torch.abs(generated_wave))
-normalized_wave = generated_wave
+# normalized_wave = generated_wave
 
 # Check the shape after normalization
-print(f"Shape of normalized_wave after normalization: {normalized_wave.shape}")
+# print(f"Shape of normalized_wave after normalization: {normalized_wave.shape}")
 
 # Set the sample rate (adjust based on your model's configuration)
-sample_rate = 24000  # Example: 24kHz
+sample_rate = 16000  # Example: 24kHz
 
 # Save the normalized waveform as a .wav file
 output_file = "generated_audio.wav"
-torchaudio.save(output_file, normalized_wave, sample_rate)
+# output_file2 = "generated_audio2.wav"
+torchaudio.save(output_file, generated_wave.cpu(), sample_rate)
+# torchaudio.save(output_file, normalized_wave, sample_rate)
 
 print(f"Audio successfully saved to {output_file}")
 
-
-
-
 # # or with priming
+# prime_path = "./p2-data/smallest_test/beach (2).wav_seg8.wav"
 
-# generated_wav_with_prime = audiolm(prime_wav = torch.randn(1, 24000 * 8))
+# generated_wav_with_prime = audiolm(prime_wave_path=prime_path)
+# generated_wav_with_prime = generated_wav_with_prime.detach().cpu()
+# torchaudio.save(output_file2, generated_wav_with_prime, sample_rate)
 
+# print(f"Audio successfully saved to {output_file2}")

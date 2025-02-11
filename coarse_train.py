@@ -50,10 +50,11 @@ logger = setup_logger()
 logger.info(f"Logger initiated, Course Trainer Program Running")
 
 # Paths to models and dataset
+# hubert_checkpoint_path = './results/semantic.transformer.102.terminated_session.pt'
 hubert_checkpoint_path = './models/hubert_base_ls960.pt'
 hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
 # dataset_path = './dbo'
-dataset_path = "p2-data/smaller_test"
+dataset_path = "./p2-data/micro_test" # 24kHz version for EnCodec
 results_folder = './results'  # Results directory
 train_split_path = os.path.join(results_folder, 'coarse_train_split.pkl')
 valid_split_path = os.path.join(results_folder, 'coarse_valid_split.pkl')
@@ -245,7 +246,7 @@ def handle_exception(e, move_bad_file=None):
 # Define a logging function
 def log_fn(logs):
     validation_interval = 100
-    model_save_interval = 1000
+    model_save_interval = 200 
 
     steps = int(coarse_trainer.steps.item()) - 1  # Get the current step from the trainer (trainer adds 1 before calling log function)
     loss = logs.get('loss', None)
