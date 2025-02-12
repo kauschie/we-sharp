@@ -97,9 +97,9 @@ semantic_transformer = SemanticTransformer(
     dim=temp_dim,  # 1024 Transformer dimensionality
     depth=temp_depth,  # Number of transformer layers
     heads=temp_heads,
-    attn_dropout = 0.1,
-    ff_dropout = 0.1,
-    flash_attn=True,  # Use Flash Attention for efficiency
+    # attn_dropout = 0.1,
+    # ff_dropout = 0.1,
+    # flash_attn=True,  # Use Flash Attention for efficiency
 ).cuda()
 
 # Load or create dataset splits
@@ -128,7 +128,7 @@ def load_splits():
 # train_split, valid_split = load_splits()
 
 # Trainer for the Semantic Transformer
-training_max = 10001
+training_max = 50
 temp_max_length = 16000*2
 # temp_data_max_length_seconds = 2
 

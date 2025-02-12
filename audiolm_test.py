@@ -9,9 +9,9 @@ import torchaudio
 
 hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
 hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
-sem_path = "./results/semantic.transformer.101.terminated_session.pt"
-coarse_path = "./results/coarse.transformer.419.terminated_session.pt"
-fine_path = "./results/fine.transformer.101.terminated_session.pt"
+sem_path = "./results/semantic.transformer.49.final.pt"
+coarse_path = "./results/coarse.transformer.64.final.pt"
+fine_path = "./results/fine.transformer.77.terminated_session.pt"
 
 # Define and initialize the Neural Audio Codec
 encodec = EncodecWrapper()
@@ -35,7 +35,7 @@ semantic_transformer = SemanticTransformer(
     dim=1024,  # Transformer dimensionality
     depth=12,  # Number of transformer layers
     heads=16,
-    flash_attn=True,  # Use Flash Attention for efficiency
+    # flash_attn=True,  # Use Flash Attention for efficiency
 ).cuda()
 semantic_transformer.load(sem_path)
 
@@ -46,7 +46,7 @@ coarse_transformer = CoarseTransformer(
     num_coarse_quantizers = 3,
     dim = 512,
     depth = 6,
-    flash_attn = True,
+    # flash_attn = True,
 ).cuda()
 coarse_transformer.load(coarse_path)
 
@@ -57,7 +57,7 @@ fine_transformer = FineTransformer(
     codebook_size = 1024,
     dim = 512,
     depth = 6,
-    flash_attn = True,
+    # flash_attn = True,
 ).cuda()
 fine_transformer.load(fine_path)
 
@@ -97,7 +97,7 @@ generated_wave = audiolm(batch_size=1)
 # print(f"Shape of normalized_wave after normalization: {normalized_wave.shape}")
 
 # Set the sample rate (adjust based on your model's configuration)
-sample_rate = 16000  # Example: 24kHz
+sample_rate = 24000  # Example: 24kHz
 
 # Save the normalized waveform as a .wav file
 output_file = "generated_audio.wav"

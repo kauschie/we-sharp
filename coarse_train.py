@@ -117,7 +117,7 @@ def load_splits():
 # train_split, valid_split = load_splits()
 
 # Trainer for the Coarse Transformer
-training_max = 10001
+training_max = 65
 # temp_data_max_length_seconds = 2
 temp_max_length = 24000 * 2
 
