@@ -54,6 +54,7 @@ hubert_checkpoint_path = './models/hubert_base_ls960.pt'
 hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
 # dataset_path = "p2-data/processed_wav"
 dataset_path = "./p2-data/micro_test_16khz"
+# dataset_path = "./p2-data/micro_test"
 results_folder = './results'  # Results directory
 train_split_path = os.path.join(results_folder, 'sem_train_split.pkl')
 valid_split_path = os.path.join(results_folder, 'sem_valid_split.pkl')
@@ -63,10 +64,10 @@ writer = SummaryWriter(logdir=log_dir)
 
 # Initialize HubertWithKmeans
 wav2vec = HubertWithKmeans(
-    # checkpoint_path=hubert_checkpoint_path,
-    checkpoint_path=None,
+    checkpoint_path=hubert_checkpoint_path,
+    # checkpoint_path=None,
     kmeans_path=hubert_kmeans_path,
-    use_mert=True
+    # use_mert=True
 ).cuda()
 
 print(f"wav2vec.target_sample_hz: {wav2vec.target_sample_hz}")
@@ -90,15 +91,13 @@ Trained on a single GPU for a few days.
 
 
 temp_dim = 1024
-temp_depth = 12
-temp_heads = 16
+temp_depth = 6
+# temp_heads = 8
 semantic_transformer = SemanticTransformer(
     num_semantic_tokens=wav2vec.codebook_size,  # From HubertWithKmeans
     dim=temp_dim,  # 1024 Transformer dimensionality
     depth=temp_depth,  # Number of transformer layers
-    heads=temp_heads,
-    # attn_dropout = 0.1,
-    # ff_dropout = 0.1,
+    # heads=temp_heads,
     # flash_attn=True,  # Use Flash Attention for efficiency
 ).cuda()
 
@@ -128,7 +127,9 @@ def load_splits():
 # train_split, valid_split = load_splits()
 
 # Trainer for the Semantic Transformer
-training_max = 50
+training_max = 201
+model_save = 50
+results_save = 25
 temp_max_length = 16000*2
 # temp_data_max_length_seconds = 2
 
@@ -153,8 +154,8 @@ if train_split is not None and valid_split is not None:
         # data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
         num_train_steps=training_max,  # Reduced number of training steps for timing experiment
         results_folder=results_folder,  # Specify custom results folder
-        save_model_every=1_000_000,  # Disable automatic saving
-        save_results_every=1_000_000  # Disable automatic saving
+        save_model_every=model_save,  # Disable automatic saving
+        save_results_every=results_save  # Disable automatic saving
     )
 else:
     ## use folder arg
@@ -171,8 +172,8 @@ else:
         # data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
         num_train_steps=training_max,  # Reduced number of training steps for timing experiment
         results_folder=results_folder,  # Specify custom results folder
-        save_model_every=1_000_000,  # Disable automatic saving
-        save_results_every=1_000_000  # Disable automatic saving
+        save_model_every=model_save,  # Disable automatic saving
+        save_results_every=results_save # Disable automatic saving
     )
 
     # Save the generated dataset splits
@@ -191,7 +192,7 @@ logger.info(f"grad_accum_every: {semantic_trainer.grad_accum_every}")
 logger.info(f"data_max_length: {temp_max_length}")
 logger.info(f"dim: {temp_dim}")
 logger.info(f"depth: {temp_depth}")
-logger.info(f"heads: {temp_heads}")
+# logger.info(f"heads: {temp_heads}")
 logger.info(f"num_semantic_tokens: {semantic_transformer.num_semantic_tokens}")
 
 
@@ -312,7 +313,8 @@ print("Starting training for the Semantic Transformer...")
 logger.info("Starting training for the Semantic Transformer...")
 
 try:
-    semantic_trainer.train(log_fn=log_fn)
+    semantic_trainer.train()
+    # semantic_trainer.train(log_fn=log_fn)
 except RuntimeError as e:
     if "CUDA error" in str(e):
         handle_exception(e)

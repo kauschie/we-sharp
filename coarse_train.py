@@ -64,10 +64,10 @@ writer = SummaryWriter(logdir=log_dir)
 
 # Initialize HubertWithKmeans
 wav2vec = HubertWithKmeans(
-    # checkpoint_path=hubert_checkpoint_path,
-    checkpoint_path=None,
+    checkpoint_path=hubert_checkpoint_path,
+    # checkpoint_path=None,
     kmeans_path=hubert_kmeans_path,
-    use_mert=True
+    # use_mert=True
 ).cuda()
 
 print(f"wav2vec.target_sample_hz: {wav2vec.target_sample_hz}")
@@ -80,6 +80,7 @@ encodec = EncodecWrapper()
 # Define and initialize the Coarse Transformer
 temp_dim = 512
 temp_depth = 6
+# temp_heads = 16
 temp_coarse_quantizers = 3
 temp_codebook_size = 1024
 coarse_transformer = CoarseTransformer(
@@ -88,6 +89,7 @@ coarse_transformer = CoarseTransformer(
     num_coarse_quantizers = temp_coarse_quantizers,
     dim = temp_dim,
     depth = temp_depth,
+    # heads = temp_heads,
     # flash_attn = True,
 ).cuda()
 
@@ -117,10 +119,11 @@ def load_splits():
 # train_split, valid_split = load_splits()
 
 # Trainer for the Coarse Transformer
-training_max = 65
+training_max = 201
 # temp_data_max_length_seconds = 2
 temp_max_length = 24000 * 2
-
+model_save = 50
+results_save = 25
 train_split = None
 valid_split = None
 if train_split is not None and valid_split is not None:
@@ -141,8 +144,8 @@ if train_split is not None and valid_split is not None:
         data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
         # data_max_length_seconds=temp_data_max_length_seconds,
         results_folder=results_folder,  # Specify custom results folder
-        save_model_every=1_000_000,  # Disable automatic saving
-        save_results_every=1_000_000,  # Disable automatic saving
+        save_model_every=model_save,  # Disable automatic saving
+        save_results_every=results_save,  # Disable automatic saving
         num_train_steps=training_max  # Reduced number of training steps for timing experiment
     )
 else:
@@ -157,8 +160,8 @@ else:
         data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
         # data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
         results_folder=results_folder,  # Specify custom results folder
-        save_model_every=1_000_000,  # Disable automatic saving
-        save_results_every=1_000_000,  # Disable automatic saving
+        save_model_every=model_save,  # Disable automatic saving
+        save_results_every=results_save,  # Disable automatic saving
         num_train_steps=training_max  # Reduced number of training steps for timing experiment
     )
 
@@ -178,6 +181,7 @@ logger.info(f"grad_accum_every: {coarse_trainer.grad_accum_every}")
 logger.info(f"data_max_length: {temp_max_length}")
 logger.info(f"dim: {temp_dim}")
 logger.info(f"depth: {temp_depth}")
+# logger.info(f"heads: {temp_heads}")
 logger.info(f"coarse quantizers: {temp_coarse_quantizers}")
 logger.info(f"codebook size: {temp_codebook_size}")
 logger.info(f"num_semantic_tokens: {coarse_transformer.num_semantic_tokens}")
@@ -300,7 +304,8 @@ print("Starting training for the Coarse Transformer...")
 logger.info("Starting training for the Coarse Transformer...")
 
 try:
-    coarse_trainer.train(log_fn=log_fn)
+    # coarse_trainer.train(log_fn=log_fn)
+    coarse_trainer.train()
 except RuntimeError as e:
     if "CUDA error" in str(e):
         handle_exception(e)

@@ -67,6 +67,7 @@ encodec = EncodecWrapper()
 # Define and initialize the Fine Transformer
 temp_dim = 512
 temp_depth = 6
+# temp_heads = 16
 temp_coarse_quantizers = 3
 temp_fine_quantizers = 5
 temp_codebook_size = 1024
@@ -76,6 +77,7 @@ fine_transformer = FineTransformer(
     codebook_size = temp_codebook_size,
     dim = temp_dim,
     depth = temp_depth,
+    # heads = temp_heads,
     # flash_attn = True,
 ).cuda()
 
@@ -106,9 +108,11 @@ def load_splits():
 train_split, valid_split = None, None
 
 # Trainer for the Fine Transformer
-training_max = 15001
+training_max = 401
 # temp_data_max_length_seconds = 2
 temp_max_length = 24000 * 2
+model_save = 50
+results_save = 25
 
 if train_split is not None and valid_split is not None:
     fine_trainer = FineTransformerTrainer(
@@ -122,8 +126,8 @@ if train_split is not None and valid_split is not None:
         data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
         # data_max_length_seconds=temp_data_max_length_seconds,
         results_folder=results_folder,  # Specify custom results folder
-        save_model_every=1_000_000,  # Disable automatic saving
-        save_results_every=1_000_000,  # Disable automatic saving
+        save_model_every=model_save,  # Disable automatic saving
+        save_results_every=results_save,  # Disable automatic saving
         grad_accum_every=32,  # Gradient accumulation steps
         num_train_steps=training_max  # Reduced number of training steps for timing experiment
     )
@@ -137,8 +141,8 @@ else:
         # data_max_length_seconds=temp_data_max_length_seconds,
         data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
         results_folder=results_folder,  # Specify custom results folder
-        save_model_every=1_000_000,  # Disable automatic saving
-        save_results_every=1_000_000,  # Disable automatic saving
+        save_model_every=model_save,  # Disable automatic saving
+        save_results_every=results_save,  # Disable automatic saving
         grad_accum_every=32,  # Gradient accumulation steps
         num_train_steps=training_max  # Reduced number of training steps for timing experiment
     )
@@ -159,6 +163,7 @@ logger.info(f"grad_accum_every: {fine_trainer.grad_accum_every}")
 logger.info(f"data_max_length: {temp_max_length}")
 logger.info(f"dim: {temp_dim}")
 logger.info(f"depth: {temp_depth}")
+# logger.info(f"heads: {temp_heads}")
 logger.info(f"coarse quantizers: {temp_coarse_quantizers}")
 logger.info(f"fine quantizers: {temp_fine_quantizers}")
 logger.info(f"codebook size: {temp_codebook_size}")
@@ -281,7 +286,8 @@ logger.info("Starting training for the Fine Transformer...")
 
 
 try:
-    fine_trainer.train(log_fn=log_fn)
+    fine_trainer.train()
+    # fine_trainer.train(log_fn=log_fn)
 except RuntimeError as e:
     if "CUDA error" in str(e):
         handle_exception(e)
