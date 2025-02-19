@@ -53,11 +53,9 @@ logger.info(f"Logger initiated, Course Trainer Program Running")
 # hubert_checkpoint_path = './results/semantic.transformer.102.terminated_session.pt'
 hubert_checkpoint_path = './models/hubert_base_ls960.pt'
 hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
-# dataset_path = './dbo'
-dataset_path = "./p2-data/micro_test" # 24kHz version for EnCodec
+dataset_path = "./p2-data/smallest_test_24k" # 24kHz version for EnCodec
+# dataset_path = "./p2-data/micro_test"
 results_folder = './results'  # Results directory
-train_split_path = os.path.join(results_folder, 'coarse_train_split.pkl')
-valid_split_path = os.path.join(results_folder, 'coarse_valid_split.pkl')
 
 # Initialize TensorBoard writer
 writer = SummaryWriter(logdir=log_dir)
@@ -79,8 +77,8 @@ encodec = EncodecWrapper()
 
 # Define and initialize the Coarse Transformer
 temp_dim = 512
-temp_depth = 6
-# temp_heads = 16
+temp_depth = 12
+temp_heads = 16
 temp_coarse_quantizers = 3
 temp_codebook_size = 1024
 coarse_transformer = CoarseTransformer(
@@ -89,104 +87,44 @@ coarse_transformer = CoarseTransformer(
     num_coarse_quantizers = temp_coarse_quantizers,
     dim = temp_dim,
     depth = temp_depth,
-    # heads = temp_heads,
+    heads = temp_heads,
     # flash_attn = True,
 ).cuda()
-
-# Load or create dataset splits
-def load_splits():
-    if os.path.exists(train_split_path) and os.path.exists(valid_split_path):
-        choice = None
-        while choice not in ['y', 'n']:
-            try:
-                choice = input("Data Splits found.\nDo you wish to load previously saved training and validation data? (y/n): ").strip().lower()
-            except Exception as e:
-                choice = None
-                print(f"Error getting input: {e}")
-                print("Please enter y or n only")
-        if choice != 'y':
-            print("Continuing without loading existing dataset splits...")
-            return None, None
-        print("Loading existing dataset splits...")
-        with open(train_split_path, 'rb') as f:
-            train_split = pickle.load(f)
-        with open(valid_split_path, 'rb') as f:
-            valid_split = pickle.load(f)
-        return train_split, valid_split
-    else:
-        return None, None
-
-# train_split, valid_split = load_splits()
 
 # Trainer for the Coarse Transformer
 training_max = 201
 # temp_data_max_length_seconds = 2
 temp_max_length = 24000 * 2
-model_save = 50
-results_save = 25
-train_split = None
-valid_split = None
-if train_split is not None and valid_split is not None:
-    logger.info(f"Using Previous training dataset: {train_split_path}")
-    logger.info(f"Using Previous validation dataset: {valid_split_path}")
-    coarse_trainer = CoarseTransformerTrainer(
-        dataset=train_split,  # Preloaded training dataset
-        valid_dataset=valid_split,  # Preloaded validation dataset
+model_save = 201
+results_save = 201
 
-        transformer=coarse_transformer,
-        codec=encodec,
-        wav2vec=wav2vec,  # HubertWithKmeans model
+logger.info(f"Transformers initiated with the following parameters:")
 
-        force_clear_prev_results=False,
-
-        batch_size = 1, # can change to 4 to match semantic_transformer, adjust based on GPU memory
-        grad_accum_every=32,  # Gradient accumulation steps
-        data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
-        # data_max_length_seconds=temp_data_max_length_seconds,
-        results_folder=results_folder,  # Specify custom results folder
-        save_model_every=model_save,  # Disable automatic saving
-        save_results_every=results_save,  # Disable automatic saving
-        num_train_steps=training_max  # Reduced number of training steps for timing experiment
-    )
-else:
-    coarse_trainer = CoarseTransformerTrainer(
-        transformer=coarse_transformer,
-        codec=encodec,
-        wav2vec=wav2vec,  # HubertWithKmeans model
-        folder=dataset_path,
-        force_clear_prev_results=False,
-        batch_size = 1, # can change to 4 to match semantic_transformer, adjust based on GPU memory
-        grad_accum_every=32,  # Gradient accumulation steps
-        data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
-        # data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
-        results_folder=results_folder,  # Specify custom results folder
-        save_model_every=model_save,  # Disable automatic saving
-        save_results_every=results_save,  # Disable automatic saving
-        num_train_steps=training_max  # Reduced number of training steps for timing experiment
-    )
-
-    # Save the generated dataset splits
-    print("Saving newly created dataset splits...")
-    logger.info("Saving newly created dataset splits...")
-    with open(train_split_path, 'wb') as f:
-        pickle.dump(coarse_trainer.ds, f)
-    with open(valid_split_path, 'wb') as f:
-        pickle.dump(coarse_trainer.valid_ds, f)
-    print(f"Dataset splits saved: {len(coarse_trainer.ds)} training samples, {len(coarse_trainer.valid_ds)} validation samples.")
-    logger.info(f"Dataset splits saved: {len(coarse_trainer.ds)} training samples, {len(coarse_trainer.valid_ds)} validation samples.")
+coarse_trainer = CoarseTransformerTrainer(
+    transformer=coarse_transformer,
+    wav2vec=wav2vec,  # HubertWithKmeans model
+    folder=dataset_path,  
+    codec=encodec,
+    force_clear_prev_results=False,
+    batch_size = 16, # can change to 4 to match semantic_transformer, adjust based on GPU memory
+    grad_accum_every = 4,  # Gradient accumulation steps
+    data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 2 seconds)
+    num_train_steps=training_max,  # Reduced number of training steps for timing experiment
+    results_folder=results_folder,  # Specify custom results folder
+    save_model_every=model_save,  # Disable automatic saving
+    save_results_every=results_save,  # Disable automatic saving
+)
 
 logger.info(f"batch_size: {coarse_trainer.batch_size}")
 logger.info(f"grad_accum_every: {coarse_trainer.grad_accum_every}")
-# logger.info(f"data_max_length_seconds: {temp_data_max_length_seconds}")
 logger.info(f"data_max_length: {temp_max_length}")
 logger.info(f"dim: {temp_dim}")
 logger.info(f"depth: {temp_depth}")
-# logger.info(f"heads: {temp_heads}")
+logger.info(f"heads: {temp_heads}")
 logger.info(f"coarse quantizers: {temp_coarse_quantizers}")
 logger.info(f"codebook size: {temp_codebook_size}")
 logger.info(f"num_semantic_tokens: {coarse_transformer.num_semantic_tokens}")
-
-
+logger.info(f"dataset: {dataset_path}")
 
 # Check for existing checkpoints
 checkpoint_files = [f for f in os.listdir(results_folder) if f.endswith('.pt') and 'coarse' in f]
@@ -258,9 +196,6 @@ def handle_exception(e, move_bad_file=None):
 
 # Define a logging function
 def log_fn(logs):
-    validation_interval = 100
-    model_save_interval = 200 
-
     steps = int(coarse_trainer.steps.item()) - 1  # Get the current step from the trainer (trainer adds 1 before calling log function)
     loss = logs.get('loss', None)
 
@@ -268,33 +203,6 @@ def log_fn(logs):
     if loss is not None:
         logger.info(f"Step {steps}: Training Loss: {loss}")
         writer.add_scalar("Training Loss", loss, steps)
-
-    # Calculate validation loss manually
-    if coarse_trainer.is_main and (steps > 0) and (steps % validation_interval) == 0:  # Example condition for validation
-        valid_loss = 0
-        unwrapped_model = coarse_trainer.accelerator.unwrap_model(coarse_trainer.train_wrapper)
-        
-        for _ in range(coarse_trainer.average_valid_loss_over_grad_accum_every):
-            data_kwargs = dict(zip(coarse_trainer.ds_fields, next(coarse_trainer.valid_dl_iter)))
-            data_kwargs = dict_values_to_device(data_kwargs, unwrapped_model.device)
-
-            with torch.no_grad():
-                unwrapped_model.eval()
-                valid_loss += unwrapped_model(**data_kwargs, return_loss=True)
-
-        valid_loss = valid_loss.clone()
-        valid_loss /= coarse_trainer.average_valid_loss_over_grad_accum_every
-
-        print(f'Step {steps}: valid loss {valid_loss}')
-        logger.info(f'Step {steps}: valid loss {valid_loss}')
-        writer.add_scalar("Validation Loss", valid_loss, steps) # save to tensorboard
-        # coarse_trainer.accelerator.log({"valid_loss": valid_loss}, step=steps)
-
-    if coarse_trainer.is_main and (steps > 0) and (steps % model_save_interval) == 0:
-        model_path = str(coarse_trainer.results_folder / f'coarse.transformer.{steps}.interval.pt')
-        coarse_trainer.save(model_path)
-        print(f'{steps}: saved model to {str(coarse_trainer.results_folder)}')
-        logger.info(f'{steps}: saved model to {model_path}')
 
 # Measure training time
 start_time = time.time()
@@ -304,8 +212,8 @@ print("Starting training for the Coarse Transformer...")
 logger.info("Starting training for the Coarse Transformer...")
 
 try:
-    # coarse_trainer.train(log_fn=log_fn)
-    coarse_trainer.train()
+    coarse_trainer.train(log_fn=log_fn)
+    # coarse_trainer.train()
 except RuntimeError as e:
     if "CUDA error" in str(e):
         handle_exception(e)

@@ -52,12 +52,9 @@ logger.info(f"Logger initiated, Semantic Trainer Program Running")
 # Paths to models and dataset
 hubert_checkpoint_path = './models/hubert_base_ls960.pt'
 hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
-# dataset_path = "p2-data/processed_wav"
+# dataset_path = "./p2-data/smallest_test_16khz"
 dataset_path = "./p2-data/micro_test_16khz"
-# dataset_path = "./p2-data/micro_test"
 results_folder = './results'  # Results directory
-train_split_path = os.path.join(results_folder, 'sem_train_split.pkl')
-valid_split_path = os.path.join(results_folder, 'sem_valid_split.pkl')
 
 # Initialize TensorBoard writer
 writer = SummaryWriter(logdir=log_dir)
@@ -68,7 +65,7 @@ wav2vec = HubertWithKmeans(
     # checkpoint_path=None,
     kmeans_path=hubert_kmeans_path,
     # use_mert=True
-).cuda()
+)
 
 print(f"wav2vec.target_sample_hz: {wav2vec.target_sample_hz}")
 logger.info(f"wav2vec.target_sample_hz: {wav2vec.target_sample_hz}")
@@ -89,111 +86,49 @@ Trained on a single GPU for a few days.
 
 """
 
-
 temp_dim = 1024
-temp_depth = 6
-# temp_heads = 8
+temp_depth = 12
+temp_heads = 16
 semantic_transformer = SemanticTransformer(
     num_semantic_tokens=wav2vec.codebook_size,  # From HubertWithKmeans
     dim=temp_dim,  # 1024 Transformer dimensionality
     depth=temp_depth,  # Number of transformer layers
-    # heads=temp_heads,
+    heads=temp_heads,
     # flash_attn=True,  # Use Flash Attention for efficiency
 ).cuda()
 
-# Load or create dataset splits
-def load_splits():
-    if os.path.exists(train_split_path) and os.path.exists(valid_split_path):
-        choice = None
-        while choice not in ['y', 'n']:
-            try:
-                choice = input("Data Splits found.\nDo you wish to load previously saved training and validation data? (y/n): ").strip().lower()
-            except Exception as e:
-                choice = None
-                print(f"Error getting input: {e}")
-                print("Please enter y or n only")
-        if choice != 'y':
-            print("Continuing without loading existing dataset splits...")
-            return None, None
-        print("Loading existing dataset splits...")
-        with open(train_split_path, 'rb') as f:
-            train_split = pickle.load(f)
-        with open(valid_split_path, 'rb') as f:
-            valid_split = pickle.load(f)
-        return train_split, valid_split
-    else:
-        return None, None
-
-# train_split, valid_split = load_splits()
-
 # Trainer for the Semantic Transformer
-training_max = 201
-model_save = 50
-results_save = 25
+training_max = 101
+model_save = 100
+results_save = 201
 temp_max_length = 16000*2
 # temp_data_max_length_seconds = 2
 
-train_split = None
-valid_split = None
 logger.info(f"Transformers initiated with the following parameters:")
-if train_split is not None and valid_split is not None:
-    # use dataset args
-    logger.info(f"Using Previous training dataset: {train_split_path}")
-    logger.info(f"Using Previous validation dataset: {valid_split_path}")
-    semantic_trainer = SemanticTransformerTrainer(
-        # dataset=train_split,  # Preloaded training dataset
-        # valid_dataset=valid_split,  # Preloaded validation dataset
-        folder=dataset_path,  # Path to your training data
-        transformer=semantic_transformer,
-        wav2vec=wav2vec,  # HubertWithKmeans model
-        force_clear_prev_results=False,
-        batch_size=1,  # Adjust based on GPU memory
-        grad_accum_every=32,  # Gradient accumulation steps
-        data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
-        # data_max_length_seconds=60*2,  # Max number of audio samples (24 kHz * 10 seconds)
-        # data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
-        num_train_steps=training_max,  # Reduced number of training steps for timing experiment
-        results_folder=results_folder,  # Specify custom results folder
-        save_model_every=model_save,  # Disable automatic saving
-        save_results_every=results_save  # Disable automatic saving
-    )
-else:
-    ## use folder arg
-    logger.info(f"Generating/using a random new dataset: {dataset_path}")
-    semantic_trainer = SemanticTransformerTrainer(
-        folder=dataset_path,  # Path to your training data
-        transformer=semantic_transformer,
-        wav2vec=wav2vec,  # HubertWithKmeans model
-        force_clear_prev_results=False,
-        batch_size=1,  # Adjust based on GPU memory
-        grad_accum_every=32,  # Gradient accumulation steps
-        data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
-        # data_max_length_seconds=60*2,  # Max number of audio samples (24 kHz * 10 seconds)
-        # data_max_length_seconds=temp_data_max_length_seconds,  # Max number of audio samples (24 kHz * 10 seconds)
-        num_train_steps=training_max,  # Reduced number of training steps for timing experiment
-        results_folder=results_folder,  # Specify custom results folder
-        save_model_every=model_save,  # Disable automatic saving
-        save_results_every=results_save # Disable automatic saving
-    )
 
-    # Save the generated dataset splits
-    print("Saving newly created dataset splits...")
-    logger.info("Saving newly created dataset splits...")
-    with open(train_split_path, 'wb') as f:
-        pickle.dump(semantic_trainer.ds, f)
-    with open(valid_split_path, 'wb') as f:
-        pickle.dump(semantic_trainer.valid_ds, f)
-    print(f"Dataset splits saved: {len(semantic_trainer.ds)} training samples, {len(semantic_trainer.valid_ds)} validation samples.")
-    logger.info(f"Dataset splits saved: {len(semantic_trainer.ds)} training samples, {len(semantic_trainer.valid_ds)} validation samples.")
+semantic_trainer = SemanticTransformerTrainer(
+    transformer=semantic_transformer,
+    wav2vec=wav2vec,  # HubertWithKmeans model
+    folder=dataset_path,  
+    force_clear_prev_results=False,
+    batch_size=4,  # Adjust based on GPU memory
+    grad_accum_every=4,  # Gradient accumulation steps
+    data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
+    num_train_steps=training_max,  # Reduced number of training steps for timing experiment
+    results_folder=results_folder,  # Specify custom results folder
+    save_model_every=model_save,  # Disable automatic saving
+    save_results_every=results_save  # Disable automatic saving
+)
+
 
 logger.info(f"batch_size: {semantic_trainer.batch_size}")
 logger.info(f"grad_accum_every: {semantic_trainer.grad_accum_every}")
-# logger.info(f"data_max_length_seconds: {temp_data_max_length_seconds}")
 logger.info(f"data_max_length: {temp_max_length}")
 logger.info(f"dim: {temp_dim}")
 logger.info(f"depth: {temp_depth}")
-# logger.info(f"heads: {temp_heads}")
+logger.info(f"heads: {temp_heads}")
 logger.info(f"num_semantic_tokens: {semantic_transformer.num_semantic_tokens}")
+logger.info(f"dataset: {dataset_path}")
 
 
 # Check for existing checkpoints
@@ -266,9 +201,6 @@ def handle_exception(e, move_bad_file=None):
 
 # Define a logging function
 def log_fn(logs):
-    validation_interval = 100
-    model_save_interval = 1000
-
     steps = int(semantic_trainer.steps.item()) - 1  # Get the current step from the trainer (trainer adds 1 before calling log function)
     loss = logs.get('loss', None)
 
@@ -276,34 +208,7 @@ def log_fn(logs):
     if loss is not None:
         logger.info(f"Step {steps}: Training Loss: {loss}")
         writer.add_scalar("Training Loss", loss, steps)
-
-    # Calculate validation loss manually
-    if semantic_trainer.is_main and (steps > 0) and (steps % validation_interval) == 0:  # Example condition for validation
-        valid_loss = 0
-        unwrapped_model = semantic_trainer.accelerator.unwrap_model(semantic_trainer.train_wrapper)
-        for _ in range(semantic_trainer.average_valid_loss_over_grad_accum_every):
-            data_kwargs = semantic_trainer.data_tuple_to_kwargs(next(semantic_trainer.valid_dl_iter))
-            data_kwargs = dict_values_to_device(data_kwargs, unwrapped_model.device)
-
-            with torch.inference_mode():
-                unwrapped_model.eval()
-                valid_loss += unwrapped_model(**data_kwargs, return_loss=True)
-
-        valid_loss = valid_loss.clone()
-        valid_loss /= semantic_trainer.average_valid_loss_over_grad_accum_every
-        # semantic_trainer.print(f'Step {steps}: valid loss {valid_loss}')
-        print(f'Step {steps}: valid loss {valid_loss}')
-        logger.info(f'Step {steps}: valid loss {valid_loss}')
-        writer.add_scalar("Validation Loss", valid_loss, steps) # save to tensorboard
-        # semantic_trainer.accelerator.log({"valid_loss": valid_loss}, step=steps)
-
-    if semantic_trainer.is_main and (steps > 0) and (steps % model_save_interval) == 0:
-        model_path = str(semantic_trainer.results_folder / f'semantic.transformer.{steps}.interval.pt')
-        semantic_trainer.save(model_path)
-        # semantic_trainer.print(f'{steps}: saved model to {str(semantic_trainer.results_folder)}')
-        print(f'{steps}: saved model to {str(semantic_trainer.results_folder)}')
-        logger.info(f'{steps}: saved model to {model_path}')
-
+        
 
 # Measure training time
 start_time = time.time()
@@ -313,8 +218,8 @@ print("Starting training for the Semantic Transformer...")
 logger.info("Starting training for the Semantic Transformer...")
 
 try:
-    semantic_trainer.train()
-    # semantic_trainer.train(log_fn=log_fn)
+    # semantic_trainer.train()
+    semantic_trainer.train(log_fn=log_fn)
 except RuntimeError as e:
     if "CUDA error" in str(e):
         handle_exception(e)
