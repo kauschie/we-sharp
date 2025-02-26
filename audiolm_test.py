@@ -10,13 +10,13 @@ import torchaudio
 hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
 hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
 
-sem_path = "./results/semantic.transformer.100.final.pt"
-coarse_path = "./results/coarse.transformer.200.final.pt"
-fine_path = "./results/fine.transformer.400.final.pt"
+sem_path = "./results/semantic.transformer.25000.pt"
+# coarse_path = "./results/coarse.transformer.200.final.pt"
+# fine_path = "./results/fine.transformer.400.final.pt"
 
 # sem_path = "./results/semantic.transformer.53.terminated_session.pt"
-# coarse_path = "./results/coarse.transformer.83.terminated_session.pt"
-# fine_path = "./results/fine.transformer.103.terminated_session.pt"
+coarse_path = "./results/coarse.transformer.29219.terminated_session.pt"
+fine_path = "./results/fine.transformer.24245.terminated_session.pt"
 
 # sem_path = "./great/results_2s/semantic.transformer.200.pt"
 # coarse_path = "./great/results_2s/coarse.transformer.200.pt"
@@ -54,8 +54,8 @@ coarse_transformer = CoarseTransformer(
     num_semantic_tokens = wav2vec.codebook_size,
     codebook_size = 1024,
     num_coarse_quantizers = 3,
-    dim = 512,
-    depth = 12,
+    dim = 1024,
+    depth = 6,
     heads = 16,
     # flash_attn = True,
 ).cuda()
@@ -66,8 +66,8 @@ fine_transformer = FineTransformer(
     num_coarse_quantizers = 3,
     num_fine_quantizers = 5,
     codebook_size = 1024,
-    dim = 512,
-    depth = 12,
+    dim = 1024,
+    depth = 6,
     heads = 16,
     # flash_attn = True,
 ).cuda()
@@ -85,25 +85,20 @@ audiolm = AudioLM(
 # print("1 Training Session / Good Quality:")
 
 def main():
-    output_file = "sem-100-coarse-200-fine-400-uc_f"
+    output_file = "sem-25000-coarse-29219-fine-24245-uc_f"
     sample_rate = 24000  # Example: 24kHz
     
-    
     # Generate audio using AudioLM
-    # output = audiolm(batch_size=1)
+    output = audiolm(batch_size=1, max_length=sample_rate*3)
 
-    # # Check the shape of the generated wave before processing
-    # print(f"Shape of generated_wave before concatenation: {len(output) if isinstance(output, list) else output.shape}")
-
-    # Set the sample rate (adjust based on your model's configuration)
-
-    # Save the normalized waveform as a .wav file
-    # output_file2 = "generated_audio2.wav"
+    # # # Check the shape of the generated wave before processing
+    print(f"Shape of generated_wave before concatenation: {len(output) if isinstance(output, list) else output.shape}")
 
     print(f"type returned: {type(output)}")
     if type(output) == list:
         print(f"length: {len(output)}")
         output = output[0]
+        print(f"len output vector: {len(output)}")
         if output.dim() == 1:
             output = output.unsqueeze(0)
         print(f"output after unsqueeze: {type(output)}")
@@ -114,9 +109,13 @@ def main():
 
     print(f"Audio successfully saved to {output_file}.wav")
 
-    # or with priming
 
-    # prime_path = "output_1s.wav"
+
+
+
+    ########## or with priming
+
+    # prime_path = "output_0-3s.wav"
     # prime_wav = audiolm(prime_wave_path=prime_path, max_length=sample_rate*4)
 
     # print(f"Shape of generated_wave before concatenation: {len(prime_wav) if isinstance(prime_wav, list) else prime_wav.shape}")

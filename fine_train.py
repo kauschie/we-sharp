@@ -54,10 +54,9 @@ logger.info(f"Logger initiated, Fine Trainer Program Running")
 hubert_checkpoint_path = './models/hubert_base_ls960.pt'
 hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
 # dataset_path = "./p2-data/smallest_test_24k" # 24kHz version for EnCodec
-dataset_path = "./p2-data/micro_test"
+dataset_path = "/home/mkausch/dev/audiolm/p1_data/small"  # p1 20,000 songs
+# dataset_path = "./p2-data/micro_test" # over_fit
 results_folder = './results'  # Results directory
-train_split_path = os.path.join(results_folder, 'fine_train_split.pkl')
-valid_split_path = os.path.join(results_folder, 'fine_valid_split.pkl')
 
 # Initialize TensorBoard writer
 writer = SummaryWriter(logdir=log_dir)
@@ -66,8 +65,8 @@ writer = SummaryWriter(logdir=log_dir)
 encodec = EncodecWrapper()
 
 # Define and initialize the Fine Transformer
-temp_dim = 512
-temp_depth = 12
+temp_dim = 1024
+temp_depth = 6
 temp_heads = 16
 temp_coarse_quantizers = 3
 temp_fine_quantizers = 5
@@ -83,18 +82,18 @@ fine_transformer = FineTransformer(
 ).cuda()
 
 # Trainer for the Fine Transformer
-training_max = 401
+training_max = 50001
+model_save = 5000
+results_save = 50001
 temp_max_length = 24000 * 2
-model_save = 401
-results_save = 401
 
 fine_trainer = FineTransformerTrainer(
     transformer=fine_transformer,
     codec=encodec,
     folder=dataset_path,
     force_clear_prev_results=False,
-    batch_size = 4, # can change to 4 to match semantic_transformer, adjust based on GPU memory
-    grad_accum_every = 4,  # Gradient accumulation steps
+    batch_size = 8, # can change to 4 to match semantic_transformer, adjust based on GPU memory
+    grad_accum_every = 8,  # Gradient accumulation steps
     data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 2 seconds)
     num_train_steps=training_max,  # Reduced number of training steps for timing experiment
     results_folder=results_folder,  # Specify custom results folder

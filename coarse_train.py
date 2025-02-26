@@ -53,7 +53,8 @@ logger.info(f"Logger initiated, Course Trainer Program Running")
 # hubert_checkpoint_path = './results/semantic.transformer.102.terminated_session.pt'
 hubert_checkpoint_path = './models/hubert_base_ls960.pt'
 hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
-dataset_path = "./p2-data/smallest_test_24k" # 24kHz version for EnCodec
+# dataset_path = "./p2-data/smallest_test_24k" # 24kHz version for EnCodec
+dataset_path = "/home/mkausch/dev/audiolm/p1_data/small"  # p1 20,000 songs
 # dataset_path = "./p2-data/micro_test"
 results_folder = './results'  # Results directory
 
@@ -76,8 +77,8 @@ logger.info(f"wav2vec.target_sample_hz: {wav2vec.target_sample_hz}")
 encodec = EncodecWrapper()
 
 # Define and initialize the Coarse Transformer
-temp_dim = 512
-temp_depth = 12
+temp_dim = 1024
+temp_depth = 6
 temp_heads = 16
 temp_coarse_quantizers = 3
 temp_codebook_size = 1024
@@ -92,11 +93,11 @@ coarse_transformer = CoarseTransformer(
 ).cuda()
 
 # Trainer for the Coarse Transformer
-training_max = 201
-# temp_data_max_length_seconds = 2
+training_max = 50001
+model_save = 5000
+results_save = 50001
 temp_max_length = 24000 * 2
-model_save = 201
-results_save = 201
+# temp_data_max_length_seconds = 2
 
 logger.info(f"Transformers initiated with the following parameters:")
 
