@@ -7,6 +7,7 @@ from audiolm_pytorch import EncodecWrapper
 import torch
 import torchaudio
 import argparse
+import math
 
 hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
 hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
@@ -64,8 +65,6 @@ audiolm = AudioLM(
     unique_consecutive=False
 )
 
-# print("1 Training Session / Good Quality:")
-
 
 def main():
     # Parse command-line arguments
@@ -84,10 +83,20 @@ def main():
     # Constants
     sample_rate = 24000
     output_length = sample_rate * 3  # 3-second chunks per generation
-    overlap_length = int(sample_rate * 0.5)  # overlap duration
+    overlap_length = int(sample_rate * 0.3)  # 0.3s overlap
+    fade_out_duration = int(sample_rate * 0.5)  # 0.5s fade out at the end
 
     generated_audio = []
     debug_counter = 1  # Counter for debug file names
+
+    # Compute fade-in and fade-out values **outside the loop** (optimization)
+    fade_in = torch.linspace(0, 1, overlap_length).unsqueeze(0)
+    fade_out = torch.linspace(1, 0, overlap_length).unsqueeze(0)
+
+    # Cosine fade-out function: (1 + cos(πt)) / 2
+    t = torch.linspace(0, 1, fade_out_duration)
+    cosine_fade_out = (1 + torch.cos(math.pi * t)) / 2
+    final_fade_out = cosine_fade_out.unsqueeze(0)
 
     # Load prime_wave if specified
     prime_wave = None
@@ -110,15 +119,19 @@ def main():
     output = audiolm(batch_size=1, max_length=output_length, prime_wave=prime_wave, prime_wave_input_sample_hz=sample_rate)
 
     # Ensure output is a tensor (convert list if necessary)
-    print(f"type returned: {type(output)}")
+    if debug_mode:
+        print(f"type returned: {type(output)}")
     if isinstance(output, list):
-        print(f"length: {len(output)}")
+        if debug_mode:
+            print(f"length: {len(output)}")
         output = output[0]
-        print(f"len output vector: {len(output)}")
+        if debug_mode:
+            print(f"len output vector: {len(output)}")
 
     if output.dim() == 1:
         output = output.unsqueeze(0)  # Ensure correct shape
-    print(f"output after unsqueeze: {output.shape}")
+    if debug_mode:
+        print(f"output after unsqueeze: {output.shape}")
 
     # Move to CPU for saving later
     output = output.cpu()
@@ -132,10 +145,6 @@ def main():
 
     # Continue generating until we reach the desired duration
     while sum([chunk.shape[1] for chunk in generated_audio]) < (desired_clip_duration * sample_rate):
-        if debug_mode:
-            length = sum([chunk.shape[1] for chunk in generated_audio]) / sample_rate
-            print(f"current length: {length:.2f}")
-            print(f"clips: {len(generated_audio)}")
         seed = output[:, -overlap_length:]  # Take the overlap as seed
 
         # Generate the next clip
@@ -150,15 +159,10 @@ def main():
         # Move to CPU before processing
         next_output = next_output.cpu()
 
-        # Apply a crossfade for smooth transitions
-        # fade_length = overlap_length // 2
-        fade_in = torch.linspace(0, 1, overlap_length).unsqueeze(0)
-        fade_out = torch.linspace(1, 0, overlap_length).unsqueeze(0)
-
         # Smooth the overlap region
         transition_start = output[:, -overlap_length:] * fade_out + next_output[:, :overlap_length] * fade_in
 
-        # Append transition and non-overlapping section
+        # Append transition and the non-overlapping portion of next_output
         generated_audio.append(transition_start)
         generated_audio.append(next_output[:, overlap_length:])
 
@@ -171,12 +175,19 @@ def main():
         # Update output for next iteration
         output = next_output
 
-    # Concatenate all audio clips
+
+    # Concatenate all audio clips **before applying fade-out**
     final_audio = torch.cat(generated_audio, dim=-1)
 
-    # Save the stitched audio file
+    # Apply **cosine fade-out** to the last `fade_out_duration` samples
+    fade_section_start = max(final_audio.shape[1] - fade_out_duration, 0)  # Ensure we don’t go negative
+    final_audio[:, fade_section_start:] *= final_fade_out[:, -final_audio.shape[1] + fade_section_start:]
+
+    # Save the final stitched audio file
     torchaudio.save(f"{output_file}.wav", final_audio, sample_rate)
     print(f"Saved final stitched audio to {output_file}.wav with duration {desired_clip_duration} seconds.")
 
+
 if __name__ == "__main__":
     main()
+
