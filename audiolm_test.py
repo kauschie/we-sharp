@@ -10,17 +10,17 @@ import torchaudio
 hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
 hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
 
-sem_path = "./results/semantic.transformer.50000.final.pt"
-coarse_path = "./results/coarse.transformer.50000.final.pt"
-# fine_path = "./results/fine.transformer.400.final.pt"
+sem_step = 50000
+coarse_step = 50000
+fine_step = 27704
+
+sem_path = f"./results/semantic.transformer.{sem_step}.final.pt"
+coarse_path = f"./results/coarse.transformer.{coarse_step}.final.pt"
+fine_path = f"./results/fine.transformer.{fine_step}.terminated_session.pt"
 
 # sem_path = "./results/semantic.transformer.53.terminated_session.pt"
 # coarse_path = "./results/coarse.transformer.31588.terminated_session.pt"
 # fine_path = "./results/fine.transformer.26353.terminated_session.pt"
-
-# coarse_path = "./great/p1_results/coarse.transformer.29219.terminated_session.pt"
-fine_path = "./great/p1_results/fine.transformer.26353.terminated_session.pt"
-
 
 # Define and initialize the Neural Audio Codec
 encodec = EncodecWrapper()
@@ -72,13 +72,14 @@ fine_transformer = FineTransformer(
 ).cuda()
 fine_transformer.load(fine_path)
 
+uc = True
 audiolm = AudioLM(
     wav2vec = wav2vec,
     codec = encodec,
     semantic_transformer = semantic_transformer,
     coarse_transformer = coarse_transformer,
     fine_transformer = fine_transformer,
-    unique_consecutive=False
+    unique_consecutive=uc,
 )
 
 import torch
@@ -88,34 +89,42 @@ def count_parameters(model):
 
 
 
-
-# print("1 Training Session / Good Quality:")
-
 def main():
-    output_file = "./p2_sem-50000-coarse-50000-fine-26353-uc_true.wav"
+    output_file = f"./p2_sem-{sem_step}-coarse-{coarse_step}-fine-{fine_step}-uc_{uc}"
+    # output_file = "./p2_TEST"
     sample_rate = 24000  # Example: 24kHz
     
     # Generate audio using AudioLM
     # output = audiolm(batch_size=1, max_length=sample_rate*4)
-    output = audiolm(batch_size=1, max_length=sample_rate*4)
+    output = audiolm(batch_size=5, max_length=250)
 
     # # # Check the shape of the generated wave before processing
     # print(f"Shape of generated_wave before concatenation: {len(output) if isinstance(output, list) else output.shape}")
 
     print(f"type returned: {type(output)}")
-    if type(output) == list:
-        print(f"length: {len(output)}")
-        output = output[0]
-        print(f"len output vector: {len(output)}")
-        if output.dim() == 1:
-            output = output.unsqueeze(0)
-        print(f"output after unsqueeze: {type(output)}")
-        torchaudio.save(f"{output_file}.wav", output.cpu(), sample_rate)
+    if isinstance(output, list):
+        print(f"list length: {len(output)}")
+        for i in range(len(output)):
+            print(f"output type: {type(output[i])}")
+            print(f"output[i] shape: {output[i].shape}")  # Debugging line
+
+            # Ensure correct shape (add channel dimension if necessary)
+            audio_tensor = output[i].cpu()
+
+            if audio_tensor.dim() == 1:  # If it's (samples,), add a channel dimension
+                audio_tensor = audio_tensor.unsqueeze(0)  # Convert to (1, samples)
+
+            print(f"Processed tensor shape for saving: {audio_tensor.shape}")
+
+            # Save the processed audio
+            torchaudio.save(f"{output_file}-{i}.wav", audio_tensor, sample_rate)
+            print(f"Audio successfully saved to {output_file}-{i}.wav")
+
     else:
         torchaudio.save(f"{output_file}.wav", output.cpu(), sample_rate)
+        print(f"Audio successfully saved to {output_file}.wav")
     # torchaudio.save(output_file, normalized_wave, sample_rate)
 
-    print(f"Audio successfully saved to {output_file}.wav")
 
 
 
