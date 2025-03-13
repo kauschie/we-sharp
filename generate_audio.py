@@ -1,3 +1,30 @@
+#
+#   Example usage statements:
+
+# python generate_audio.py --duration 10
+
+#           will generate at least 10 seconds of audio, likely a bit more 
+#               because i don't slice it at 10 exactly i just make sure that 
+#               it finishes after the most recent one that gets it past 10 seconds.
+
+# python generate_audio.py --duration 10 --prime_wave seed.wav --output my_track
+
+#       generates ~10s audio with see input seed.wav which is the path 
+#               to the wav input pile used as a seed
+
+# python generate_audio.py --duration 10 --debug
+
+#           will enable debug mode which prints some stuff out to look at 
+#               tensor shapes at different points and outputs the slices
+#                   of music generated
+
+# python generate_audio.py --duration 8 --output my_generated_track
+
+#           will generate an ~8 second clip and change the output 
+#               name to my_generated_track.wav
+#
+
+
 from audiolm_pytorch import AudioLM
 from audiolm_pytorch import SemanticTransformer
 from audiolm_pytorch import CoarseTransformer
@@ -12,9 +39,13 @@ import math
 hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
 hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
 
-sem_path = "./results/semantic.transformer.25000.pt"
-coarse_path = "./results/coarse.transformer.29219.terminated_session.pt"
-fine_path = "./results/fine.transformer.24245.terminated_session.pt"
+# sem_path = "./great/p1_results/semantic.transformer.25000.pt"
+# coarse_path = "./great/p1_results/coarse.transformer.29219.terminated_session.pt"
+# fine_path = "./great/p1_results/fine.transformer.24245.terminated_session.pt"
+
+sem_path = "./results/semantic.transformer.50000.pt"
+coarse_path = "./results/coarse.transformer.31588.terminated_session.pt"
+fine_path = "./results/fine.transformer.26353.terminated_session.pt"
 
 # Define and initialize the Neural Audio Codec
 encodec = EncodecWrapper()
@@ -82,8 +113,8 @@ def main():
 
     # Constants
     sample_rate = 24000
-    output_length = sample_rate * 3  # 3-second chunks per generation
-    overlap_length = int(sample_rate * 0.3)  # 0.3s overlap
+    output_length = sample_rate * 4  # 3-second chunks per generation
+    overlap_length = int(sample_rate * 1)  # 0.3s overlap
     fade_out_duration = int(sample_rate * 0.5)  # 0.5s fade out at the end
 
     generated_audio = []
@@ -145,6 +176,9 @@ def main():
 
     # Continue generating until we reach the desired duration
     while sum([chunk.shape[1] for chunk in generated_audio]) < (desired_clip_duration * sample_rate):
+        cur_length = sum([chunk.shape[1] for chunk in generated_audio])
+        print(f"Current length: {cur_length/sample_rate} seconds")
+        
         seed = output[:, -overlap_length:]  # Take the overlap as seed
 
         # Generate the next clip

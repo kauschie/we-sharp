@@ -54,7 +54,8 @@ hubert_checkpoint_path = './models/hubert_base_ls960.pt'
 hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
 # dataset_path = "./p2-data/smallest_test_16khz"
 # dataset_path = "./p2-data/micro_test_16khz"
-dataset_path = "/home/mkausch/dev/audiolm/p1_data/small"  # p1 20,000 songs
+# dataset_path = "/home/mkausch/dev/audiolm/p1_data/small"  # p1 20,000 songs
+dataset_path = "/home/mkausch/dev/audiolm/p2-data/p2_4s_16k"  # p1 28,159 songs
 results_folder = './results'  # Results directory
 
 # Initialize TensorBoard writer
@@ -103,7 +104,7 @@ semantic_transformer = SemanticTransformer(
 training_max = 50001
 model_save = 5000
 results_save = 50001
-temp_max_length = 16000*2
+temp_max_length = 16000*4
 # temp_data_max_length_seconds = 2
 
 logger.info(f"Transformers initiated with the following parameters:")
@@ -113,9 +114,9 @@ semantic_trainer = SemanticTransformerTrainer(
     wav2vec=wav2vec,  # HubertWithKmeans model
     folder=dataset_path,  
     force_clear_prev_results=False,
-    batch_size=64,  # Adjust based on GPU memory
+    batch_size=32,  # Adjust based on GPU memory
     grad_accum_every=4,  # Gradient accumulation steps
-    data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 10 seconds)
+    data_max_length=temp_max_length,  # Max number of audio samples (16 kHz * 4 seconds)
     num_train_steps=training_max,  # Reduced number of training steps for timing experiment
     results_folder=results_folder,  # Specify custom results folder
     save_model_every=model_save,  # Disable automatic saving

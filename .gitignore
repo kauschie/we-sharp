@@ -9,3 +9,5 @@ p2-data/*
 logs_bak/
 results_bak/
 midi-p2-partial.tar.gz
+good/
+bad/
