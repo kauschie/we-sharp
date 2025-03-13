@@ -10,17 +10,16 @@ import torchaudio
 hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
 hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
 
-sem_path = "./results/semantic.transformer.25000.pt"
-# coarse_path = "./results/coarse.transformer.200.final.pt"
+sem_path = "./results/semantic.transformer.50000.final.pt"
+coarse_path = "./results/coarse.transformer.50000.final.pt"
 # fine_path = "./results/fine.transformer.400.final.pt"
 
 # sem_path = "./results/semantic.transformer.53.terminated_session.pt"
-coarse_path = "./results/coarse.transformer.29219.terminated_session.pt"
-fine_path = "./results/fine.transformer.24245.terminated_session.pt"
+# coarse_path = "./results/coarse.transformer.31588.terminated_session.pt"
+# fine_path = "./results/fine.transformer.26353.terminated_session.pt"
 
-# sem_path = "./great/results_2s/semantic.transformer.200.pt"
-# coarse_path = "./great/results_2s/coarse.transformer.200.pt"
-# fine_path = "./great/results_2s/fine.transformer.400.pt"
+# coarse_path = "./great/p1_results/coarse.transformer.29219.terminated_session.pt"
+fine_path = "./great/p1_results/fine.transformer.26353.terminated_session.pt"
 
 
 # Define and initialize the Neural Audio Codec
@@ -82,17 +81,26 @@ audiolm = AudioLM(
     unique_consecutive=False
 )
 
+import torch
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+
+
 # print("1 Training Session / Good Quality:")
 
 def main():
-    output_file = "sem-25000-coarse-29219-fine-24245-uc_f"
+    output_file = "./p2_sem-50000-coarse-50000-fine-26353-uc_true.wav"
     sample_rate = 24000  # Example: 24kHz
     
     # Generate audio using AudioLM
-    output = audiolm(batch_size=1, max_length=sample_rate*3)
+    # output = audiolm(batch_size=1, max_length=sample_rate*4)
+    output = audiolm(batch_size=1, max_length=sample_rate*4)
 
     # # # Check the shape of the generated wave before processing
-    print(f"Shape of generated_wave before concatenation: {len(output) if isinstance(output, list) else output.shape}")
+    # print(f"Shape of generated_wave before concatenation: {len(output) if isinstance(output, list) else output.shape}")
 
     print(f"type returned: {type(output)}")
     if type(output) == list:
@@ -134,5 +142,18 @@ def main():
     #     torchaudio.save(f"{output_file}-primed.wav", prime_wav.cpu(), sample_rate)
 
     # print(f"Audio successfully saved to {output_file}-primed.wav")
+
+
+    # Assuming you have instantiated the models:
+    # print(f"Semantic Transformer Parameters: {count_parameters(semantic_transformer):,}")
+    # print(f"Coarse Transformer Parameters: {count_parameters(coarse_transformer):,}")
+    # print(f"Fine Transformer Parameters: {count_parameters(fine_transformer):,}")
+
+    # # Total count
+    # total_params = (count_parameters(semantic_transformer) + 
+    #                 count_parameters(coarse_transformer) + 
+    #                 count_parameters(fine_transformer))
+    # print(f"Total Trainable Parameters in AudioLM: {total_params:,}")
+
 
 main()
