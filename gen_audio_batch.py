@@ -1,3 +1,38 @@
+#
+#   Example usage statements:
+
+
+# python generate_audio.py --duration 8 --batch_size 4--output my_generated_track
+
+#           will generate an 4 x ~8 second clips and change the output 
+#               name to my_generated_track.wav
+#
+#
+
+
+# python generate_audio.py --duration 10
+
+#           will generate at least 10 seconds of audio, likely a bit more 
+#               because i don't slice it at 10 exactly i just make sure that 
+#               it finishes after the most recent one that gets it past 10 seconds.
+
+# python generate_audio.py --duration 10 --prime_wave seed.wav --output my_track
+
+#       generates ~10s audio with see input seed.wav which is the path 
+#               to the wav input pile used as a seed
+
+# python generate_audio.py --duration 10 --debug
+
+#           will enable debug mode which prints some stuff out to look at 
+#               tensor shapes at different points and outputs the slices
+#                   of music generated
+
+# python generate_audio.py --duration 8 --output my_generated_track
+
+#           will generate an ~8 second clip and change the output 
+#               name to my_generated_track.wav
+#
+
 from audiolm_pytorch import AudioLM, SemanticTransformer, CoarseTransformer, FineTransformer, HubertWithKmeans, EncodecWrapper
 import torch
 import torchaudio
@@ -8,12 +43,12 @@ import math
 hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
 hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
 
-sem_step = 50000
-coarse_step = 50000
-fine_step = 50000
+sem_step = 25000
+coarse_step = 29219
+fine_step = 25245
 
 # sem_path = f"./results/semantic.transformer.{sem_step}.final.pt"
-# coarse_path = f"./results/coarse.transformer.{coarse_step}.final.pt"
+# coarse_path = f"./results/coarse.transformer.{coarse_step}.terminated_session.pt"
 # fine_path = f"./results/fine.transformer.{fine_step}.final.pt"
 
 sem_path = "./great/p1_results/semantic.transformer.25000.pt"
@@ -217,6 +252,8 @@ def main():
     cosine_fade_out = (1 + torch.cos(math.pi * t)) / 2
     final_fade_out = cosine_fade_out.unsqueeze(0)
 
+
+    # Load and preprocess prime_wave
     prime_wave = None
     if prime_wave_path:
         prime_wave, prime_sample_rate = torchaudio.load(prime_wave_path)
@@ -224,14 +261,39 @@ def main():
             resampler = torchaudio.transforms.Resample(orig_freq=prime_sample_rate, new_freq=sample_rate)
             prime_wave = resampler(prime_wave)
         if prime_wave.dim() == 1:
-            prime_wave = prime_wave.unsqueeze(0)
-        prime_wave = prime_wave.cuda()
+            prime_wave = prime_wave.unsqueeze(0)  # Ensure correct shape [1, samples]
+        prime_wave = prime_wave.cuda()  # Move to GPU for inference
 
-    output = audiolm(batch_size=batch_size, max_length=output_length, prime_wave=prime_wave, prime_wave_input_sample_hz=sample_rate)
+    # Convert prime_wave to prime_ids using wav2vec
+    if prime_wave is not None:
+        seed = prime_wave[:, -overlap_length:].to("cuda")  # Use last part for seeding
+        prime_id = audiolm.semantic.wav2vec(seed, flatten=False, input_sample_hz=sample_rate)
+
+        # Expand prime_id across batch_size so every track starts from the same point
+        prime_ids = torch.cat([prime_id] * batch_size, dim=0)
+
+        # Generate first batch
+        output = audiolm(batch_size=batch_size, max_length=output_length, prime_ids=prime_ids)
+
+        # Include prime wave in `generated_audio`
+        for i in range(batch_size):
+            generated_audio[i].append(prime_wave.cpu())  # Ensure it's included in final output
+    else:
+        # If no prime wave is provided, generate from scratch
+        output = audiolm(batch_size=batch_size, max_length=output_length)
+
+    # Ensure correct format
     output = [o.cpu().unsqueeze(0) if o.dim() == 1 else o.cpu() for o in output]
 
+    # Make sure all output clips start with the same length
     min_initial_length = min(o.shape[1] for o in output)
     output = [o[:, :min_initial_length] for o in output]
+
+    # Append first generated chunk to `generated_audio`
+    for i in range(batch_size):
+        generated_audio[i].append(output[i][:, :-overlap_length])  # Exclude overlap section
+
+
 
     for i in range(batch_size):
         generated_audio[i].append(output[i][:, :-overlap_length])
