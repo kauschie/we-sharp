@@ -55,7 +55,7 @@ hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
 # dataset_path = "./p2-data/smallest_test_16khz"
 # dataset_path = "./p2-data/micro_test_16khz"
 # dataset_path = "/home/mkausch/dev/audiolm/p1_data/small"  # p1 20,000 songs
-dataset_path = "/home/mkausch/dev/audiolm/p2-data/p2_4s_16k"  # p1 28,159 songs
+dataset_path = "/home/mkausch/dev/audiolm/p2-data/p2_4s_16k"  # p2 868,603 songs
 results_folder = './results'  # Results directory
 
 # Initialize TensorBoard writer

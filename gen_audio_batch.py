@@ -43,15 +43,15 @@ import math
 hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
 hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
 
-sem_step = 25000
-coarse_step = 29219
+sem_step = 50000
+coarse_step = 100000
 fine_step = 25245
 
-# sem_path = f"./results/semantic.transformer.{sem_step}.final.pt"
+sem_path = f"./results/semantic.transformer.{sem_step}.final.pt"
 # coarse_path = f"./results/coarse.transformer.{coarse_step}.terminated_session.pt"
 # fine_path = f"./results/fine.transformer.{fine_step}.final.pt"
 
-sem_path = "./great/p1_results/semantic.transformer.25000.pt"
+# sem_path = "./great/p1_results/semantic.transformer.25000.pt"
 coarse_path = "./great/p1_results/coarse.transformer.29219.terminated_session.pt"
 fine_path = "./great/p1_results/fine.transformer.24245.terminated_session.pt"
 
@@ -290,8 +290,8 @@ def main():
     output = [o[:, :min_initial_length] for o in output]
 
     # Append first generated chunk to `generated_audio`
-    for i in range(batch_size):
-        generated_audio[i].append(output[i][:, :-overlap_length])  # Exclude overlap section
+    # for i in range(batch_size):
+    #     generated_audio[i].append(output[i][:, :-overlap_length])  # Exclude overlap section
 
 
 
@@ -324,22 +324,29 @@ def main():
         next_output = [o[:, :min_next_output_length] for o in next_output]
 
         for i in range(batch_size):
+            track_output = next_output[i]
+
+            # Get last segment from previous output
             last_segment = generated_audio[i][-1][:, -overlap_length:].cuda()
-            next_segment = next_output[i][:, :overlap_length].cuda()
 
-            if last_segment.shape[1] < overlap_length:
-                pad_size = overlap_length - last_segment.shape[1]
-                last_segment = torch.nn.functional.pad(last_segment, (pad_size, 0))  # Ensure consistent length
+            # Get first segment from new output
+            next_segment = track_output[:, :overlap_length].cuda()
 
-            fade_in_adj = fade_in.cuda()
-            fade_out_adj = fade_out.cuda()
+            # Use smallest valid overlap
+            valid_overlap_length = min(last_segment.shape[1], next_segment.shape[1])
+            last_segment = last_segment[:, -valid_overlap_length:]
+            next_segment = next_segment[:, :valid_overlap_length]
+            fade_in_adj = fade_in[:, :valid_overlap_length].cuda()
+            fade_out_adj = fade_out[:, :valid_overlap_length].cuda()
 
+            # Smooth transition
             transition_start = last_segment * fade_out_adj + next_segment * fade_in_adj
 
-            # generated_audio[i].append(transition_start)
-            generated_audio[i].append(next_output[i][:, overlap_length:].cuda())
+            # Append transition + remaining
+            generated_audio[i].append(transition_start)
+            generated_audio[i].append(track_output[:, valid_overlap_length:].cuda())
 
-            print(f"[DEBUG] Updated generated_audio[{i}] length: {sum([chunk.shape[1] for chunk in generated_audio[i]])}")
+            print(f"[DEBUG] Final segment shape for track {i}: {generated_audio[i][-1].shape}")
 
         output = next_output
 

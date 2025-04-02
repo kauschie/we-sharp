@@ -11,8 +11,8 @@ hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
 hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
 
 sem_step = 50000
-coarse_step = 50000
-fine_step = 27704
+coarse_step = 100000
+fine_step = 115301
 
 sem_path = f"./results/semantic.transformer.{sem_step}.final.pt"
 coarse_path = f"./results/coarse.transformer.{coarse_step}.final.pt"
@@ -20,7 +20,7 @@ fine_path = f"./results/fine.transformer.{fine_step}.terminated_session.pt"
 
 # sem_path = "./results/semantic.transformer.53.terminated_session.pt"
 # coarse_path = "./results/coarse.transformer.31588.terminated_session.pt"
-# fine_path = "./results/fine.transformer.26353.terminated_session.pt"
+# fine_path = "./great/p1_results/fine.transformer.24245.terminated_session.pt"
 
 # Define and initialize the Neural Audio Codec
 encodec = EncodecWrapper()
@@ -96,7 +96,9 @@ def main():
     
     # Generate audio using AudioLM
     # output = audiolm(batch_size=1, max_length=sample_rate*4)
-    output = audiolm(batch_size=5, max_length=250)
+    prime_path = "./seed_files/copy_1_0.5s.wav"
+    # output = audiolm(batch_size=1, max_length=250, prime_wave_path=prime_path)
+    output = audiolm(batch_size=12, max_length=250)
 
     # # # Check the shape of the generated wave before processing
     # print(f"Shape of generated_wave before concatenation: {len(output) if isinstance(output, list) else output.shape}")
@@ -124,33 +126,6 @@ def main():
         torchaudio.save(f"{output_file}.wav", output.cpu(), sample_rate)
         print(f"Audio successfully saved to {output_file}.wav")
     # torchaudio.save(output_file, normalized_wave, sample_rate)
-
-
-
-
-
-
-    ########## or with priming
-
-    # prime_path = "output_0-3s.wav"
-    # prime_wav = audiolm(prime_wave_path=prime_path, max_length=sample_rate*4)
-
-    # print(f"Shape of generated_wave before concatenation: {len(prime_wav) if isinstance(prime_wav, list) else prime_wav.shape}")
-
-
-
-    # print(f"type returned: {type(prime_wav)}")
-    # if type(prime_wav) == list:
-    #     print(f"length: {len(prime_wav)}")
-    #     prime_wav = prime_wav[0]
-    #     if prime_wav.dim() == 1:
-    #         prime_wav = prime_wav.unsqueeze(0)
-    #     print(f"prime_wav after unsqueeze: {type(prime_wav)}")
-    #     torchaudio.save(f"{output_file}-primed.wav", prime_wav.cpu(), sample_rate)
-    # else:
-    #     torchaudio.save(f"{output_file}-primed.wav", prime_wav.cpu(), sample_rate)
-
-    # print(f"Audio successfully saved to {output_file}-primed.wav")
 
 
     # Assuming you have instantiated the models:
