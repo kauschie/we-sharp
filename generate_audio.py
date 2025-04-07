@@ -43,9 +43,13 @@ hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
 # coarse_path = "./great/p1_results/coarse.transformer.29219.terminated_session.pt"
 # fine_path = "./great/p1_results/fine.transformer.24245.terminated_session.pt"
 
-sem_path = "./results/semantic.transformer.50000.pt"
-coarse_path = "./results/coarse.transformer.31588.terminated_session.pt"
-fine_path = "./results/fine.transformer.26353.terminated_session.pt"
+sem_step = 50000
+coarse_step = 50000
+fine_step = 50000
+
+sem_path = f"./results/semantic.transformer.{sem_step}.final.pt"
+coarse_path = f"./results/coarse.transformer.{coarse_step}.final.pt"
+fine_path = f"./results/fine.transformer.{fine_step}.final.pt"
 
 # Define and initialize the Neural Audio Codec
 encodec = EncodecWrapper()
@@ -87,13 +91,14 @@ fine_transformer = FineTransformer(
 ).cuda()
 fine_transformer.load(fine_path)
 
+uc = False
 audiolm = AudioLM(
     wav2vec = wav2vec,
     codec = encodec,
     semantic_transformer = semantic_transformer,
     coarse_transformer = coarse_transformer,
     fine_transformer = fine_transformer,
-    unique_consecutive=False
+    unique_consecutive=uc
 )
 
 

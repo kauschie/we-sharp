@@ -45,15 +45,15 @@ import os
 hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
 hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
 
-sem_step = 50000
-coarse_step = 100000
-fine_step = 25245
+sem_step = 55000
+coarse_step = 108507
+fine_step = 136325
 
-# sem_path = f"./results/semantic.transformer.{sem_step}.final.pt"
+sem_path = f"./results/semantic.transformer.{sem_step}.pt"
 # coarse_path = f"./results/coarse.transformer.{coarse_step}.terminated_session.pt"
-# fine_path = f"./results/fine.transformer.{fine_step}.final.pt"
+# fine_path = f"./results/fine.transformer.{fine_step}.terminated_session.pt"
 
-sem_path = "./great/p1_results/semantic.transformer.25000.pt"
+# sem_path = "./great/p1_results/semantic.transformer.25000.pt"
 coarse_path = "./great/p1_results/coarse.transformer.29219.terminated_session.pt"
 fine_path = "./great/p1_results/fine.transformer.24245.terminated_session.pt"
 
@@ -100,7 +100,7 @@ audiolm = AudioLM(
     semantic_transformer=semantic_transformer, 
     coarse_transformer=coarse_transformer, 
     fine_transformer=fine_transformer, 
-    unique_consecutive=False
+    unique_consecutive=True
     )
 
 # Helper to check if all tracks reached desired duration
@@ -138,6 +138,8 @@ def main():
     # output_length = desired_clip_duration * token_rate
     # output_length = desired_clip_duration * token_rate
     output_length = desired_clip_duration + 1
+    max_seed_seconds = 3
+    max_seed_samples = int(sample_rate * max_seed_seconds)
     overlap_length = int(sample_rate * 1)
     fade_out_duration = int(sample_rate * 0.5)
 
@@ -160,7 +162,9 @@ def main():
 
     # Generate first batch
     if prime_wave is not None:
-        seed = prime_wave[:, -overlap_length:]
+        total_samples = prime_wave.shape[-1]
+        seed_length = min(total_samples, max_seed_samples)
+        seed = prime_wave[:, -seed_length:]
         prime_id = audiolm.semantic.wav2vec(seed, flatten=False, input_sample_hz=sample_rate)
         prime_ids = torch.cat([prime_id] * batch_size, dim=0)
         # output = audiolm(batch_size=batch_size, max_length=output_length, prime_ids=prime_ids, track_progress=progress_path)
