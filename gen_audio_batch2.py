@@ -38,6 +38,8 @@ import torch
 import torchaudio
 import argparse
 import math
+from pathlib import Path
+import os
 
 # Model paths
 hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
@@ -101,127 +103,6 @@ audiolm = AudioLM(
     unique_consecutive=False
     )
 
-# def main():
-#     # Parse command-line arguments
-#     parser = argparse.ArgumentParser(description="Generate stitched AudioLM output with batch processing.")
-#     parser.add_argument("--duration", type=float, required=True, help="Desired output duration in seconds")
-#     parser.add_argument("--output", type=str, default="stitched_audio", help="Output filename (without .wav)")
-#     parser.add_argument("--prime_wave", type=str, default=None, help="Path to WAV file to use as an initial seed")
-#     parser.add_argument("--debug", action="store_true", help="Enable debug mode to save individual segments")
-#     parser.add_argument("--batch_size", type=int, default=2, help="Batch size for parallel audio generation")
-
-#     args = parser.parse_args()
-#     desired_clip_duration = args.duration  # User-defined output length in seconds
-#     output_file = args.output
-#     prime_wave_path = args.prime_wave
-#     debug_mode = args.debug
-#     batch_size = args.batch_size
-
-#     # Constants
-#     sample_rate = 24000
-#     output_length = sample_rate * 4  # 4-second chunks per generation
-#     overlap_length = int(sample_rate * 1)  # 1 second overlap
-#     fade_out_duration = int(sample_rate * 0.5)  # 0.5s fade out at the end
-
-#     generated_audio = [[] for _ in range(batch_size)]  # Store audio sequences for each batch
-#     debug_counter = 1  # Counter for debug file names
-
-#     # Compute fade-in and fade-out values **outside the loop** (optimization)
-#     fade_in = torch.linspace(0, 1, overlap_length).unsqueeze(0)
-#     fade_out = torch.linspace(1, 0, overlap_length).unsqueeze(0)
-#     t = torch.linspace(0, 1, fade_out_duration)
-#     cosine_fade_out = (1 + torch.cos(math.pi * t)) / 2
-#     final_fade_out = cosine_fade_out.unsqueeze(0)
-
-#     # Load prime_wave if specified
-#     prime_wave = None
-#     if prime_wave_path:
-#         print(f"Loading prime wave from {prime_wave_path}...")
-#         prime_wave, prime_sample_rate = torchaudio.load(prime_wave_path)
-
-#         # Resample if necessary
-#         if prime_sample_rate != sample_rate:
-#             print(f"Resampling prime wave from {prime_sample_rate}Hz to {sample_rate}Hz...")
-#             resampler = torchaudio.transforms.Resample(orig_freq=prime_sample_rate, new_freq=sample_rate)
-#             prime_wave = resampler(prime_wave)
-
-#         # Ensure correct shape and move to GPU
-#         if prime_wave.dim() == 1:
-#             prime_wave = prime_wave.unsqueeze(0)
-#         prime_wave = prime_wave.cuda()
-
-#     # Generate first batch of clips
-#     output = audiolm(batch_size=batch_size, max_length=output_length, prime_wave=prime_wave, prime_wave_input_sample_hz=sample_rate)
-
-#     # Ensure batch outputs are tensors
-#     if isinstance(output, list):
-#         output = [o.cpu().unsqueeze(0) if o.dim() == 1 else o.cpu() for o in output]
-
-#     # Store initial batch of audio (excluding the overlap)
-#     for i in range(batch_size):
-#         generated_audio[i].append(output[i][:, :-overlap_length])
-
-#         if debug_mode:
-#             torchaudio.save(f"piece{debug_counter}-{i}.wav", output[i][:, :-overlap_length], sample_rate)
-#             debug_counter += 1
-
-#     # Continue generating until we reach the desired duration
-#     while sum([chunk.shape[1] for chunk in generated_audio[0]]) < (desired_clip_duration * sample_rate):
-#         cur_length = sum([chunk.shape[1] for chunk in generated_audio[0]])
-#         print(f"Current length: {cur_length/sample_rate} seconds")
-
-#         # Extract semantic token IDs for each waveform in the batch **individually**
-#         prime_id_list = []
-#         for i, out in enumerate(output):
-#             last_segment = out[:, -overlap_length:].to("cuda")  # Move to GPU
-#             print(f"[DEBUG] Processing batch {i} - Last segment shape: {last_segment.shape}, Device: {last_segment.device}")
-
-#             # Convert to semantic token IDs
-#             prime_ids = audiolm.semantic.wav2vec(last_segment, flatten=False, input_sample_hz=sample_rate)
-#             print(f"[DEBUG] Generated prime_ids {i} - Shape: {prime_ids.shape}, Device: {prime_ids.device}")
-
-#             prime_id_list.append(prime_ids)
-
-#         # Stack all processed token sequences
-#         prime_ids = torch.stack(prime_id_list).squeeze(1)  # Remove extra dim
-#         print(f"[DEBUG] Reshaped prime_ids shape: {prime_ids.shape}")
-
-#         # Pass tokenized IDs to audiolm instead of raw waveform
-#         next_output = audiolm(batch_size=batch_size, max_length=output_length, prime_ids=prime_ids)
-
-#         # Ensure correct format
-#         if isinstance(next_output, list):
-#             next_output = [o.cpu().unsqueeze(0) if o.dim() == 1 else o.cpu() for o in next_output]
-
-#         for i in range(batch_size):
-#             # Smooth the overlap region for batch i
-#             transition_start = output[i][:, -overlap_length:] * fade_out + next_output[i][:, :overlap_length] * fade_in
-
-#             # Append transition and the non-overlapping portion of next_output
-#             generated_audio[i].append(transition_start)
-#             generated_audio[i].append(next_output[i][:, overlap_length:])
-
-#             if debug_mode:
-#                 torchaudio.save(f"piece{debug_counter}-{i}.wav", transition_start, sample_rate)
-#                 debug_counter += 1
-#                 torchaudio.save(f"piece{debug_counter}-{i}.wav", next_output[i][:, overlap_length:], sample_rate)
-#                 debug_counter += 1
-
-#         # Update output for next iteration
-#         output = next_output
-
-#     # Concatenate all audio clips **before applying fade-out**
-#     final_audio = [torch.cat(audio, dim=-1) for audio in generated_audio]
-
-#     # Apply **cosine fade-out** to the last `fade_out_duration` samples for each batch
-#     for i in range(batch_size):
-#         fade_section_start = max(final_audio[i].shape[1] - fade_out_duration, 0)
-#         final_audio[i][:, fade_section_start:] *= final_fade_out[:, -final_audio[i].shape[1] + fade_section_start:]
-
-#         # Save the final stitched audio file for each batch item
-#         torchaudio.save(f"{output_file}-{i}.wav", final_audio[i], sample_rate)
-#         print(f"Saved final stitched audio to {output_file}-{i}.wav with duration {desired_clip_duration} seconds.")
-
 # Helper to check if all tracks reached desired duration
 def is_done(generated_audio, sample_rate, desired_clip_duration):
     durations = []
@@ -241,16 +122,22 @@ def main():
     parser.add_argument("--debug", action="store_true", help="Enable debug mode to save individual segments")
     parser.add_argument("--batch_size", type=int, default=2, help="Batch size for parallel audio generation")
 
+
     args = parser.parse_args()
     desired_clip_duration = args.duration
-    output_file = args.output
+    output_file = str(Path(args.output).resolve())
     prime_wave_path = args.prime_wave
     debug_mode = args.debug
     batch_size = args.batch_size
 
+    output_dir = os.path.dirname(output_file) or os.getcwd()
+    progress_path = os.path.join(output_dir, "progress.json")
+
     sample_rate = 24000
-    token_rate = 50
-    output_length = desired_clip_duration * token_rate
+    # token_rate = 50
+    # output_length = desired_clip_duration * token_rate
+    # output_length = desired_clip_duration * token_rate
+    output_length = desired_clip_duration + 1
     overlap_length = int(sample_rate * 1)
     fade_out_duration = int(sample_rate * 0.5)
 
@@ -276,12 +163,14 @@ def main():
         seed = prime_wave[:, -overlap_length:]
         prime_id = audiolm.semantic.wav2vec(seed, flatten=False, input_sample_hz=sample_rate)
         prime_ids = torch.cat([prime_id] * batch_size, dim=0)
-        output = audiolm(batch_size=batch_size, max_length=output_length, prime_ids=prime_ids)
+        # output = audiolm(batch_size=batch_size, max_length=output_length, prime_ids=prime_ids, track_progress=progress_path)
+        output = audiolm(batch_size=batch_size, desired_duration=output_length, prime_ids=prime_ids, track_progress=progress_path)
 
         for i in range(batch_size):
             generated_audio[i].append(prime_wave.cpu())
     else:
-        output = audiolm(batch_size=batch_size, max_length=output_length)
+        # output = audiolm(batch_size=batch_size, max_length=output_length, track_progress=progress_path)
+        output = audiolm(batch_size=batch_size, desired_duration=output_length, track_progress=progress_path)
 
     output = [o.cpu().unsqueeze(0) if o.dim() == 1 else o.cpu() for o in output]
 
@@ -307,7 +196,8 @@ def main():
 
         prime_ids = torch.cat(prime_ids, dim=0)
 
-        next_output = audiolm(batch_size=batch_size, max_length=output_length, prime_ids=prime_ids)
+        # next_output = audiolm(batch_size=batch_size, max_length=output_length, prime_ids=prime_ids, track_progress=progress_path)
+        next_output = audiolm(batch_size=batch_size, desired_duration=output_length, prime_ids=prime_ids, track_progress=progress_path)
         next_output = [o.cpu().unsqueeze(0) if o.dim() == 1 else o.cpu() for o in next_output]
 
         min_next_output_length = min(o.shape[1] for o in next_output)
