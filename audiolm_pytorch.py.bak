@@ -27,7 +27,7 @@ from torchaudio.functional import resample
 
 from audiolm_pytorch.soundstream import SoundStream
 from audiolm_pytorch.encodec import EncodecWrapper
-from audiolm_pytorch.utils import AudioConditionerBase
+from audiolm_pytorch.utils import AudioConditionerBase, write_progress, _start_times
 from audiolm_pytorch.attend import Attend
 
 from tqdm import tqdm
@@ -1420,6 +1420,7 @@ class SemanticTransformerWrapper(nn.Module):
         filter_thres = 0.9,
         temperature = 1.,
         use_kv_cache = True,
+        track_progress = False,
         include_eos_in_output = True,  # if doing hierarchical sampling, eos must be kept for an easy time
         **kwargs
     ):
@@ -1503,6 +1504,12 @@ class SemanticTransformerWrapper(nn.Module):
 
             sampled = rearrange(sampled, 'b -> b 1')
             sample_semantic_ids = torch.cat((sample_semantic_ids, sampled), dim = -1)
+
+            if track_progress and ind % 10 == 0:
+                percent = ((ind + 1) / max_length) * 100
+                length_seconds = (ind + 1) / 50.0
+                write_progress("semantic", percent, length_seconds, track_progress)
+
 
             if all_rows_have_eos_id(sample_semantic_ids, self.eos_id):
                 break
@@ -1625,6 +1632,7 @@ class CoarseTransformerWrapper(nn.Module):
         filter_thres = 0.9,
         temperature = 1.,
         reconstruct_wave = False,
+        track_progress = False,
         use_kv_cache = True,
         **kwargs
     ):
@@ -1711,6 +1719,12 @@ class CoarseTransformerWrapper(nn.Module):
 
                 sampled = rearrange(sampled, 'b -> b 1')
                 sampled_coarse_token_ids = torch.cat((sampled_coarse_token_ids, sampled), dim = -1)
+
+            if track_progress and time_step % 10 == 0:
+                percent = (time_step + 1) / max_time_steps * 100
+                length_seconds = (time_step + 1) / 75.0
+                write_progress("coarse", percent, length_seconds, track_progress)
+
 
         # sampled_coarse_token_ids = mask_out_after_eos_id(sampled_coarse_token_ids, self.coarse_eos_id, keep_eos = False)
         sampled_coarse_token_ids = rearrange(sampled_coarse_token_ids, 'b (n q) -> b n q', q = self.num_coarse_quantizers)
@@ -1916,6 +1930,7 @@ class FineTransformerWrapper(nn.Module):
         filter_thres = 0.9,
         temperature = 1.,
         reconstruct_wave = False,
+        track_progress = False,
         use_kv_cache = True,
         mask_out_generated_fine_tokens = False,
         **kwargs
@@ -2007,6 +2022,11 @@ class FineTransformerWrapper(nn.Module):
                 sampled = rearrange(sampled, 'b -> b 1')
                 sampled_fine_token_ids = torch.cat((sampled_fine_token_ids, sampled), dim = -1)
 
+
+            if track_progress and time_step % 10 == 0:
+                percent = (time_step + 1) / max_time_steps * 100
+                length_seconds = (time_step + 1) / 75.0
+                write_progress("fine", percent, length_seconds, track_progress)
         # sampled_fine_token_ids = mask_out_after_eos_id(sampled_fine_token_ids, self.eos_id, keep_eos = False)
 
         # reshape coarse and fine tokens for quantization dimension
@@ -2225,6 +2245,7 @@ class AudioLM(nn.Module):
         mask_out_generated_fine_tokens = False,
         return_coarse_and_fine=False,
         return_semantic=False,
+        track_progress=False,
         desired_duration=None
     ):
         assert not (self.needs_text and (not exists(text) and not exists(text_embeds))), 'text needs to be passed in if one of the transformer requires conditioning'
@@ -2250,15 +2271,23 @@ class AudioLM(nn.Module):
             semantic_frame_rate = 50
             max_length = int(desired_duration * semantic_frame_rate)
 
+        if track_progress:
+            _start_times.clear()
+            write_progress("semantic", 0, 0, track_progress)
+
         semantic_token_ids = self.semantic.generate(
             text_embeds = text_embeds if self.semantic_has_condition else None,
             batch_size = batch_size,
             prime_wave = prime_wave,
             prime_wave_input_sample_hz = prime_wave_input_sample_hz,
             prime_ids = prime_ids,
+            track_progress = track_progress,
             max_length = max_length
         )
         
+        if track_progress:
+            write_progress("semantic", 100, len(semantic_token_ids[0]) / 50.0, track_progress)
+
         if return_semantic:
             return semantic
         print("Semantic token shape:", semantic_token_ids.shape)
@@ -2268,30 +2297,46 @@ class AudioLM(nn.Module):
         frame_rate = codec_sr/hop_len
         max_time_steps = int(desired_duration*frame_rate) if desired_duration else semantic_token_ids.shape[1]
 
+
+        if track_progress:
+            _start_times.clear()
+            write_progress("coarse", 0, 0, track_progress)
+
         coarse_token_ids_or_recon_wave = self.coarse.generate(
             text_embeds = text_embeds if self.coarse_has_condition else None,
             semantic_token_ids = semantic_token_ids,
             prime_wave = prime_wave,
             prime_wave_input_sample_hz = prime_wave_input_sample_hz,
             reconstruct_wave = return_coarse_generated_wave,
+            track_progress = track_progress,
             max_time_steps=max_time_steps
         )
 
         print("Coarse token shape:", coarse_token_ids_or_recon_wave.shape)
         
+        if track_progress:
+            write_progress("coarse", 100, len(coarse_token_ids_or_recon_wave[0]) / 50.0, track_progress)
         
         if return_coarse_generated_wave:
             return coarse_token_ids_or_recon_wave
 
+
+        if track_progress:
+            _start_times.clear()
+            write_progress("fine", 0, 0, track_progress)
+            
         generated_wave = self.fine.generate(
             text_embeds = text_embeds if self.fine_has_condition else None,
             coarse_token_ids = coarse_token_ids_or_recon_wave,
             prime_wave = prime_wave,
             prime_wave_input_sample_hz = prime_wave_input_sample_hz,
             reconstruct_wave = True,
+            track_progress = track_progress,
             mask_out_generated_fine_tokens = mask_out_generated_fine_tokens
         )
 
+        if track_progress:
+            write_progress("fine", 100, len(generated_wave[0])/24000.0, track_progress)
 
 
         print(f"[DEBUG] type returned from fine.generate: {type(generated_wave)}")
