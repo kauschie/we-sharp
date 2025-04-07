@@ -101,9 +101,9 @@ semantic_transformer = SemanticTransformer(
 ).cuda()
 
 # Trainer for the Semantic Transformer
-training_max = 50001
+training_max = 67861 
 model_save = 5000
-results_save = 50001
+results_save = 67861 
 temp_max_length = 16000*4
 # temp_data_max_length_seconds = 2
 

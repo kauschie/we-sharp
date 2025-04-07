@@ -47,11 +47,11 @@ sem_step = 50000
 coarse_step = 100000
 fine_step = 25245
 
-sem_path = f"./results/semantic.transformer.{sem_step}.final.pt"
+# sem_path = f"./results/semantic.transformer.{sem_step}.final.pt"
 # coarse_path = f"./results/coarse.transformer.{coarse_step}.terminated_session.pt"
 # fine_path = f"./results/fine.transformer.{fine_step}.final.pt"
 
-# sem_path = "./great/p1_results/semantic.transformer.25000.pt"
+sem_path = "./great/p1_results/semantic.transformer.25000.pt"
 coarse_path = "./great/p1_results/coarse.transformer.29219.terminated_session.pt"
 fine_path = "./great/p1_results/fine.transformer.24245.terminated_session.pt"
 
@@ -222,6 +222,16 @@ audiolm = AudioLM(
 #         torchaudio.save(f"{output_file}-{i}.wav", final_audio[i], sample_rate)
 #         print(f"Saved final stitched audio to {output_file}-{i}.wav with duration {desired_clip_duration} seconds.")
 
+# Helper to check if all tracks reached desired duration
+def is_done(generated_audio, sample_rate, desired_clip_duration):
+    durations = []
+    for i, track in enumerate(generated_audio):
+        track_len = sum(chunk.shape[1] for chunk in track)
+        duration_sec = track_len / sample_rate
+        durations.append(duration_sec)
+        print(f"[DEBUG] Track {i} current duration: {duration_sec:.2f} seconds")
+    return all(d >= desired_clip_duration for d in durations)
+
 def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Generate stitched AudioLM output with batch processing.")
@@ -239,20 +249,16 @@ def main():
     batch_size = args.batch_size
 
     sample_rate = 24000
-    # output_length = sample_rate * 4  
-    output_length = 5
-    overlap_length = int(sample_rate * .5)
+    token_rate = 50
+    output_length = desired_clip_duration * token_rate
+    overlap_length = int(sample_rate * 1)
     fade_out_duration = int(sample_rate * 0.5)
-
-    generated_audio = [[] for _ in range(batch_size)]
-    debug_counter = 1
 
     fade_in = torch.linspace(0, 1, overlap_length).unsqueeze(0)
     fade_out = torch.linspace(1, 0, overlap_length).unsqueeze(0)
-    t = torch.linspace(0, 1, fade_out_duration)
-    cosine_fade_out = (1 + torch.cos(math.pi * t)) / 2
-    final_fade_out = cosine_fade_out.unsqueeze(0)
+    final_fade_out = ((1 + torch.cos(math.pi * torch.linspace(0, 1, fade_out_duration))) / 2).unsqueeze(0)
 
+    generated_audio = [[] for _ in range(batch_size)]
 
     # Load and preprocess prime_wave
     prime_wave = None
@@ -262,58 +268,39 @@ def main():
             resampler = torchaudio.transforms.Resample(orig_freq=prime_sample_rate, new_freq=sample_rate)
             prime_wave = resampler(prime_wave)
         if prime_wave.dim() == 1:
-            prime_wave = prime_wave.unsqueeze(0)  # Ensure correct shape [1, samples]
-        prime_wave = prime_wave.cuda()  # Move to GPU for inference
+            prime_wave = prime_wave.unsqueeze(0)
+        prime_wave = prime_wave.cuda()
 
-    # Convert prime_wave to prime_ids using wav2vec
+    # Generate first batch
     if prime_wave is not None:
-        seed = prime_wave[:, -overlap_length:].to("cuda")  # Use last part for seeding
+        seed = prime_wave[:, -overlap_length:]
         prime_id = audiolm.semantic.wav2vec(seed, flatten=False, input_sample_hz=sample_rate)
-
-        # Expand prime_id across batch_size so every track starts from the same point
         prime_ids = torch.cat([prime_id] * batch_size, dim=0)
+        output = audiolm(batch_size=batch_size, max_length=output_length, prime_ids=prime_ids)
 
-        # Generate first batch
-        # output = audiolm(batch_size=batch_size, max_length=output_length, prime_ids=prime_ids)
-        output = audiolm(batch_size=batch_size, desired_duration=output_length, prime_ids=prime_ids)
-
-        # Include prime wave in `generated_audio`
         for i in range(batch_size):
-            generated_audio[i].append(prime_wave.cpu())  # Ensure it's included in final output
+            generated_audio[i].append(prime_wave.cpu())
     else:
-        # If no prime wave is provided, generate from scratch
-        # output = audiolm(batch_size=batch_size, max_length=output_length)
-        output = audiolm(batch_size=batch_size, desired_duration=output_length)
+        output = audiolm(batch_size=batch_size, max_length=output_length)
 
-    # Ensure correct format
     output = [o.cpu().unsqueeze(0) if o.dim() == 1 else o.cpu() for o in output]
-
-    # Make sure all output clips start with the same length
-    min_initial_length = min(o.shape[1] for o in output)
-    output = [o[:, :min_initial_length] for o in output]
-
-    # Append first generated chunk to `generated_audio`
-    # for i in range(batch_size):
-    #     generated_audio[i].append(output[i][:, :-overlap_length])  # Exclude overlap section
-
-
 
     for i in range(batch_size):
         generated_audio[i].append(output[i][:, :-overlap_length])
         print(f"[DEBUG] Initial generated_audio[{i}] shape: {generated_audio[i][-1].shape}")
 
-    while sum([chunk.shape[1] for chunk in generated_audio[0]]) < (desired_clip_duration * sample_rate):
-        cur_length = sum([chunk.shape[1] for chunk in generated_audio[0]])
-        print(f"Current length: {cur_length/sample_rate} seconds")
+    # Loop to continue generation
+    # Generation loop
+    while not is_done(generated_audio, sample_rate, desired_clip_duration):
+        print(f"\n[DEBUG] Starting new generation round")
 
         prime_ids = []
         for i in range(batch_size):
             last_segment = generated_audio[i][-1][:, -overlap_length:].to("cuda")
 
-            # Ensure last_segment is exactly overlap_length
             if last_segment.shape[1] < overlap_length:
                 pad_size = overlap_length - last_segment.shape[1]
-                last_segment = torch.nn.functional.pad(last_segment, (pad_size, 0))  # Pad at the beginning
+                last_segment = torch.nn.functional.pad(last_segment, (pad_size, 0))
 
             prime_id = audiolm.semantic.wav2vec(last_segment, flatten=False, input_sample_hz=sample_rate)
             prime_ids.append(prime_id)
@@ -327,41 +314,31 @@ def main():
         next_output = [o[:, :min_next_output_length] for o in next_output]
 
         for i in range(batch_size):
-            track_output = next_output[i]
-
-            # Get last segment from previous output
             last_segment = generated_audio[i][-1][:, -overlap_length:].cuda()
+            next_segment = next_output[i][:, :overlap_length].cuda()
 
-            # Get first segment from new output
-            next_segment = track_output[:, :overlap_length].cuda()
+            if last_segment.shape[1] < overlap_length:
+                pad_size = overlap_length - last_segment.shape[1]
+                last_segment = torch.nn.functional.pad(last_segment, (pad_size, 0))
 
-            # Use smallest valid overlap
-            valid_overlap_length = min(last_segment.shape[1], next_segment.shape[1])
-            last_segment = last_segment[:, -valid_overlap_length:]
-            next_segment = next_segment[:, :valid_overlap_length]
-            fade_in_adj = fade_in[:, :valid_overlap_length].cuda()
-            fade_out_adj = fade_out[:, :valid_overlap_length].cuda()
+            fade_in_adj = fade_in.cuda()
+            fade_out_adj = fade_out.cuda()
 
-            # Smooth transition
             transition_start = last_segment * fade_out_adj + next_segment * fade_in_adj
 
-            # Append transition + remaining
-            generated_audio[i].append(transition_start)
-            generated_audio[i].append(track_output[:, valid_overlap_length:].cuda())
-
-            print(f"[DEBUG] Final segment shape for track {i}: {generated_audio[i][-1].shape}")
+            # Only append the non-overlapping portion
+            generated_audio[i].append(next_output[i][:, overlap_length:].cuda())
+            print(f"[DEBUG] Track {i} updated length after appending: {sum(chunk.shape[1] for chunk in generated_audio[i]) / sample_rate:.2f} seconds")
 
         output = next_output
 
-    final_audio = [torch.cat([chunk.cpu() for chunk in audio], dim=-1) for audio in generated_audio]
+    final_audio = [torch.cat([chunk.cpu() for chunk in track], dim=-1) for track in generated_audio]
 
     for i in range(batch_size):
-        fade_section_start = max(final_audio[i].shape[1] - fade_out_duration, 0)
-        final_audio[i][:, fade_section_start:] *= final_fade_out[:, -final_audio[i].shape[1] + fade_section_start:]
+        fade_start = max(final_audio[i].shape[1] - fade_out_duration, 0)
+        final_audio[i][:, fade_start:] *= final_fade_out[:, -final_audio[i].shape[1] + fade_start:]
 
-        final_audio_cpu = final_audio[i].cpu()
-        torchaudio.save(f"{output_file}-{i}.wav", final_audio_cpu, sample_rate)
-
+        torchaudio.save(f"{output_file}-{i}.wav", final_audio[i].cpu(), sample_rate)
         print(f"Saved final stitched audio to {output_file}-{i}.wav with duration {final_audio[i].shape[1] / sample_rate:.2f} seconds.")
 
 if __name__ == "__main__":

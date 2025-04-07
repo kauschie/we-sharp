@@ -10,16 +10,22 @@ import torchaudio
 hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
 hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
 
-sem_step = 50000
-coarse_step = 100000
-fine_step = 115301
+sem_step = 55000
+coarse_step = 101065
+fine_step = 132678
 
-sem_path = f"./results/semantic.transformer.{sem_step}.final.pt"
-coarse_path = f"./results/coarse.transformer.{coarse_step}.final.pt"
+sem_path = f"./results/semantic.transformer.{sem_step}.pt"
+coarse_path = f"./results/coarse.transformer.{coarse_step}.terminated_session.pt"
 fine_path = f"./results/fine.transformer.{fine_step}.terminated_session.pt"
 
-# sem_path = "./results/semantic.transformer.53.terminated_session.pt"
-# coarse_path = "./results/coarse.transformer.31588.terminated_session.pt"
+
+# sem_step = 25000
+# coarse_step = 29219
+# fine_step = 24245
+
+
+# sem_path = "./great/p1_results/semantic.transformer.25000.pt"
+# coarse_path = "./great/p1_results/coarse.transformer.29219.terminated_session.pt"
 # fine_path = "./great/p1_results/fine.transformer.24245.terminated_session.pt"
 
 # Define and initialize the Neural Audio Codec
@@ -72,7 +78,7 @@ fine_transformer = FineTransformer(
 ).cuda()
 fine_transformer.load(fine_path)
 
-uc = True
+uc = False
 audiolm = AudioLM(
     wav2vec = wav2vec,
     codec = encodec,
@@ -98,7 +104,8 @@ def main():
     # output = audiolm(batch_size=1, max_length=sample_rate*4)
     prime_path = "./seed_files/copy_1_0.5s.wav"
     # output = audiolm(batch_size=1, max_length=250, prime_wave_path=prime_path)
-    output = audiolm(batch_size=12, max_length=250)
+    # output = audiolm(batch_size=12, max_length=250)
+    output = audiolm(batch_size=12, desired_duration=5)
 
     # # # Check the shape of the generated wave before processing
     # print(f"Shape of generated_wave before concatenation: {len(output) if isinstance(output, list) else output.shape}")
