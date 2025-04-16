@@ -55,7 +55,8 @@ hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
 # dataset_path = "./p2-data/smallest_test_16khz"
 # dataset_path = "./p2-data/micro_test_16khz"
 # dataset_path = "/home/mkausch/dev/audiolm/p1_data/small"  # p1 20,000 songs
-dataset_path = "/home/mkausch/dev/audiolm/p2-data/p2_4s_16k"  # p2 868,603 songs
+# dataset_path = "/home/mkausch/dev/audiolm/p2-data/p2_4s_16k"  # p2 868,603 songs
+dataset_path = "/home/mkausch/dev/audiolm/hz_10s_16k"  # p2 136,809 songs
 results_folder = './results'  # Results directory
 
 # Initialize TensorBoard writer
@@ -90,21 +91,21 @@ Trained on a single GPU for a few days.
 
 # temp_dim = 1024
 temp_dim = 1024
-temp_depth = 12
-temp_heads = 16
+temp_depth = 6
+temp_heads = 8
 semantic_transformer = SemanticTransformer(
     num_semantic_tokens=wav2vec.codebook_size,  # From HubertWithKmeans
     dim=temp_dim,  # 1024 Transformer dimensionality
     depth=temp_depth,  # Number of transformer layers
     heads=temp_heads,
-    # flash_attn=True,  # Use Flash Attention for efficiency
+    flash_attn=True,  # Use Flash Attention for efficiency
 ).cuda()
 
 # Trainer for the Semantic Transformer
-training_max = 67861 
-model_save = 5000
-results_save = 67861 
-temp_max_length = 16000*4
+training_max = 10000
+model_save = 1000
+results_save = 1000
+temp_max_length = 16000*10
 # temp_data_max_length_seconds = 2
 
 logger.info(f"Transformers initiated with the following parameters:")
@@ -114,7 +115,7 @@ semantic_trainer = SemanticTransformerTrainer(
     wav2vec=wav2vec,  # HubertWithKmeans model
     folder=dataset_path,  
     force_clear_prev_results=False,
-    batch_size=32,  # Adjust based on GPU memory
+    batch_size=36,  # Adjust based on GPU memory
     grad_accum_every=4,  # Gradient accumulation steps
     data_max_length=temp_max_length,  # Max number of audio samples (16 kHz * 4 seconds)
     num_train_steps=training_max,  # Reduced number of training steps for timing experiment
