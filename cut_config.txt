@@ -1,3 +1,0 @@
-Start_offset=30
-length=10
-n_cuts=3
