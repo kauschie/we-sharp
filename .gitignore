@@ -23,3 +23,7 @@ not-used/*
 assets/
 training1/
 *.sf2
+set_*/
+processed_*/
+baddies/
+midi/
