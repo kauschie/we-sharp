@@ -10,13 +10,13 @@ import torchaudio
 hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
 hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
 
-sem_step = 55000
-coarse_step = 101065
-fine_step = 132678
+sem_step = 51525
+coarse_step = 25070
+fine_step = 9000
 
-sem_path = f"./results/semantic.transformer.{sem_step}.pt"
+sem_path = f"./results/semantic.transformer.{sem_step}.terminated_session.pt"
 coarse_path = f"./results/coarse.transformer.{coarse_step}.terminated_session.pt"
-fine_path = f"./results/fine.transformer.{fine_step}.terminated_session.pt"
+fine_path = f"./results/fine.transformer.{fine_step}.pt"
 
 
 # sem_step = 25000
@@ -48,8 +48,8 @@ wav2vec = HubertWithKmeans(
 semantic_transformer = SemanticTransformer(
     num_semantic_tokens=wav2vec.codebook_size,  # From HubertWithKmeans
     dim=1024,  # Transformer dimensionality
-    depth=12,  # Number of transformer layers
-    heads=16,
+    depth=6,  # Number of transformer layers
+    heads=8,
     # flash_attn=True,  # Use Flash Attention for efficiency
 ).cuda()
 semantic_transformer.load(sem_path)
@@ -61,7 +61,7 @@ coarse_transformer = CoarseTransformer(
     num_coarse_quantizers = 3,
     dim = 1024,
     depth = 6,
-    heads = 16,
+    heads = 8,
     # flash_attn = True,
 ).cuda()
 coarse_transformer.load(coarse_path)
@@ -73,7 +73,7 @@ fine_transformer = FineTransformer(
     codebook_size = 1024,
     dim = 1024,
     depth = 6,
-    heads = 16,
+    heads = 8,
     # flash_attn = True,
 ).cuda()
 fine_transformer.load(fine_path)
@@ -104,8 +104,8 @@ def main():
     # output = audiolm(batch_size=1, max_length=sample_rate*4)
     prime_path = "./seed_files/copy_1_0.5s.wav"
     # output = audiolm(batch_size=1, max_length=250, prime_wave_path=prime_path)
-    # output = audiolm(batch_size=12, max_length=250)
-    output = audiolm(batch_size=12, desired_duration=5)
+    output = audiolm(batch_size=6, max_length=50*6)
+    # output = audiolm(batch_size=6, desired_duration=10)
 
     # # # Check the shape of the generated wave before processing
     # print(f"Shape of generated_wave before concatenation: {len(output) if isinstance(output, list) else output.shape}")

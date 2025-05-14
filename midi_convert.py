@@ -36,8 +36,12 @@ def py_midi_to_audio(midi_file, output_path, soundfont=None, sample_rate=24000):
     # Convert to mono torch tensor: shape (1, n_samples)
     audio_tensor = torch.from_numpy(audio_np).unsqueeze(0)
 
-    # Save audio using torchaudio
+    # Convert float32 in range [-1.0, 1.0] to int16
+    audio_tensor = (audio_tensor * 32767.0).clamp(-32768, 32767).to(torch.int16)
+
+    # Save using torchaudio in PCM format (int16)
     torchaudio.save(output_path, audio_tensor, sample_rate, format=ext[1:])
+
     print(f"[✓] Converted {midi_file} → {output_path} ({sample_rate}Hz)")
 
 if __name__ == "__main__":

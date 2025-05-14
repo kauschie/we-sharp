@@ -57,7 +57,9 @@ hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
 # dataset_path = "/home/mkausch/dev/audiolm/p1_data/small"  # p1 20,000 songs
 # dataset_path = "./p2-data/micro_test"
 # dataset_path = "/home/mkausch/dev/audiolm/p2-data/p2_4s_24k"  # p2 868,603 songs
-dataset_path = "/home/mkausch/dev/audiolm/hz_10s_24k"  # p2 136,809 songs
+# dataset_path = "/home/mkausch/dev/audiolm/hz_10s_24k"  # p2 136,809 songs
+dataset_path = "/home/mkausch/dev/audiolm/hz_2s_24k"  # p2 136,809 songs
+
 results_folder = './results'  # Results directory
 
 # Initialize TensorBoard writer
@@ -91,14 +93,14 @@ coarse_transformer = CoarseTransformer(
     dim = temp_dim,
     depth = temp_depth,
     heads = temp_heads,
-    flash_attn = True,
+    #flash_attn = True,
 ).cuda()
 
 # Trainer for the Coarse Transformer
-training_max = 20001
+training_max = 100001
 model_save = 1000
-results_save = 10001
-temp_max_length = 24000 * 10
+results_save = 1000 
+temp_max_length = 24000 * 2
 # temp_data_max_length_seconds = 2
 
 logger.info(f"Transformers initiated with the following parameters:")
@@ -109,7 +111,7 @@ coarse_trainer = CoarseTransformerTrainer(
     folder=dataset_path,  
     codec=encodec,
     force_clear_prev_results=False,
-    batch_size = 5, # can change to 4 to match semantic_transformer, adjust based on GPU memory
+    batch_size = 28, # can change to 4 to match semantic_transformer, adjust based on GPU memory
     grad_accum_every = 4,  # Gradient accumulation steps
     data_max_length=temp_max_length,  # Max number of audio samples (24 kHz * 2 seconds)
     num_train_steps=training_max,  # Reduced number of training steps for timing experiment

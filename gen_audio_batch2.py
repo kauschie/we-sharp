@@ -1,8 +1,14 @@
 #
 #   Example usage statements:
 
+# python gen_audio_batch2.py --duration 8 --batch_size 4 --prime_wave seed_files/midi_cut.wav --output my_generated_track
 
-# python generate_audio.py --duration 8 --batch_size 4--output my_generated_track
+#           will generate an 4 x ~8 second clips and change the output 
+#               name to my_generated_track.wav
+#
+#
+
+# python gen_audio_batch2.py --duration 8 --batch_size 4 --output my_generated_track
 
 #           will generate an 4 x ~8 second clips and change the output 
 #               name to my_generated_track.wav
@@ -10,24 +16,24 @@
 #
 
 
-# python generate_audio.py --duration 10
+# python gen_audio_batch2.py --duration 10
 
 #           will generate at least 10 seconds of audio, likely a bit more 
 #               because i don't slice it at 10 exactly i just make sure that 
 #               it finishes after the most recent one that gets it past 10 seconds.
 
-# python generate_audio.py --duration 10 --prime_wave seed.wav --output my_track
+# python gen_audio_batch2.py --duration 10 --prime_wave seed.wav --output my_track
 
 #       generates ~10s audio with see input seed.wav which is the path 
 #               to the wav input pile used as a seed
 
-# python generate_audio.py --duration 10 --debug
+# python gen_audio_batch2.py --duration 10 --debug
 
 #           will enable debug mode which prints some stuff out to look at 
 #               tensor shapes at different points and outputs the slices
 #                   of music generated
 
-# python generate_audio.py --duration 8 --output my_generated_track
+# python gen_audio_batch2.py --duration 8 --output my_generated_track
 
 #           will generate an ~8 second clip and change the output 
 #               name to my_generated_track.wav
@@ -49,11 +55,11 @@ sem_step = 55000
 coarse_step = 108507
 fine_step = 136325
 
-sem_path = f"./results/semantic.transformer.{sem_step}.pt"
+# sem_path = f"./results/semantic.transformer.{sem_step}.pt"
 # coarse_path = f"./results/coarse.transformer.{coarse_step}.terminated_session.pt"
 # fine_path = f"./results/fine.transformer.{fine_step}.terminated_session.pt"
 
-# sem_path = "./great/p1_results/semantic.transformer.25000.pt"
+sem_path = "./great/p1_results/semantic.transformer.25000.pt"
 coarse_path = "./great/p1_results/coarse.transformer.29219.terminated_session.pt"
 fine_path = "./great/p1_results/fine.transformer.24245.terminated_session.pt"
 
@@ -152,13 +158,25 @@ def main():
     # Load and preprocess prime_wave
     prime_wave = None
     if prime_wave_path:
+        # Load the waveform and its sample rate
         prime_wave, prime_sample_rate = torchaudio.load(prime_wave_path)
+
+        # Resample if needed
         if prime_sample_rate != sample_rate:
             resampler = torchaudio.transforms.Resample(orig_freq=prime_sample_rate, new_freq=sample_rate)
             prime_wave = resampler(prime_wave)
+
+        # Ensure the waveform is 2D (channels x samples)
         if prime_wave.dim() == 1:
             prime_wave = prime_wave.unsqueeze(0)
+
+        # If it's stereo (2 channels), average to make it mono
+        if prime_wave.size(0) > 1:
+            prime_wave = prime_wave.mean(dim=0, keepdim=True)
+
+        # Move to GPU
         prime_wave = prime_wave.cuda()
+
 
     # Generate first batch
     if prime_wave is not None:
