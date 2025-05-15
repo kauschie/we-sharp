@@ -14,3 +14,12 @@ bad/
 progress.json
 p1_data
 great/
+baddies/
+athena_data
+__pycache__/
+hz_midi/
+hz_10s_16k/
+hz_16k_wav/
+hz_processed_midi/
+soundfonts/
+data/

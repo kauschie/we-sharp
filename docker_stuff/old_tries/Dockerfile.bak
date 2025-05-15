@@ -1,0 +1,44 @@
+# Use a CUDA-enabled base image
+FROM nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04
+
+# Install system dependencies and Miniconda
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    vim \
+    p7zip-full \
+    build-essential \
+    openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add GitHub to known hosts (avoids SSH prompt)
+RUN mkdir -p /root/.ssh && \
+    ssh-keyscan github.com >> /root/.ssh/known_hosts
+
+# Install Miniconda
+RUN curl -o /miniconda.sh -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash /miniconda.sh -b -p /opt/conda && \
+    rm /miniconda.sh
+
+# Set PATH and install pip<24.1 before creating env
+ENV PATH="/opt/conda/bin:$PATH"
+RUN conda install -y "pip<24.1"
+
+# Copy and build Conda env
+COPY environment.yml /tmp/environment.yml
+RUN conda env create -f /tmp/environment.yml --verbose && conda clean -a -y
+
+# Activate environment
+ENV CONDA_DEFAULT_ENV=audiolm_env
+ENV PATH="/opt/conda/envs/$CONDA_DEFAULT_ENV/bin:$PATH"
+
+# Copy project files
+WORKDIR /workspace
+COPY . /workspace
+
+# Install audiolm manually (if not already in requirements)
+RUN pip install audiolm-pytorch --no-deps
+
+# Default shell
+CMD ["/bin/bash"]
+
