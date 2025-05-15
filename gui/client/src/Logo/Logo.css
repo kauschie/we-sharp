@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,100..900;1,100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Silkscreen:wght@400;700&display=swap');
+
+.logo-area {
+    height: 100%;
+    width: 500px;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+}
+
+.title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    /* Font */
+    color: rgba(255, 255, 255, 0.9);
+
+    /* Option 1 */
+    font-family: "Silkscreen", sans-serif;
+    font-weight: 700;
+    font-style: normal;
+    font-size: 24px;
+    
+    /* Option 2*/
+    font-family: "Sora", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-size: 24px;
+    font-style: normal;
+}
+
+.logo {
+    max-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo-size {
+    height: 45%;
+    width: 70%;
+}
