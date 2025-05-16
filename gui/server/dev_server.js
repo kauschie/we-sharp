@@ -17,7 +17,7 @@ app.use(express.json())
 const CLIENT_PORT = 5400
 
 // Global variables
-const pathToAudioLM = "../scripts/"
+const pathToAudioLM = "../../audiolm/"
 
 // CORS setup
 app.use(cors({
