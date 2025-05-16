@@ -6,6 +6,7 @@ dependencies:
   - python=3.10
   - pip<24.1
   - fluidsynth
+  - boxsdk
   - pip:
       - pip<24.1
       - tensorboardX

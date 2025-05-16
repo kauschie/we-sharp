@@ -43,5 +43,11 @@ COPY . /workspace
 # Install audiolm-pytorch manually without dependencies
 RUN pip install audiolm-pytorch --no-deps
 
+# Copy modified Python files into image
+COPY lib_mods/*.py /tmp/lib_mods/
+
+# Patch the modified files into the audiolm_pytorch site-packages
+RUN cp /tmp/lib_mods/*.py /opt/conda/envs/audiolm_env/lib/python3.10/site-packages/audiolm_pytorch/.
+
 # Entry point
 CMD ["/bin/bash"]
