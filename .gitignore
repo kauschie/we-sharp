@@ -23,3 +23,5 @@ hz_16k_wav/
 hz_processed_midi/
 soundfonts/
 data/
+p1_logs/
+p1_results/

@@ -10,6 +10,17 @@ from audiolm_pytorch import HubertWithKmeans, EncodecWrapper, CoarseTransformer,
 from audiolm_pytorch.trainer import dict_values_to_device
 from tensorboardX import SummaryWriter
 
+
+# monkey patch torch.load to always disable weights_only
+# This is a workaround for a bug in the audiolm_pytorch library
+original_load = torch.load
+def patched_load(*args, **kwargs):
+    kwargs["weights_only"] = False
+    return original_load(*args, **kwargs)
+
+torch.load = patched_load
+
+
 def setup_logger(level=logging.INFO):
     """
     Sets up a custom logger with a format similar to logging.basicConfig,

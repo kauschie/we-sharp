@@ -4,13 +4,13 @@ from pydub.utils import make_chunks
 from tqdm import tqdm
 
 # Parameters
-segment_length_ms = 10000  # 10 seconds
+segment_length_ms = 2000  # 2 seconds
 rms_threshold = 100  # Adjust this if needed after testing (typical range 50–200)
 
 # Paths
 input_folder = "hz_16k_wav"
-output_folder_16k = "hz_10s_16k"
-output_folder_24k = "hz_10s_24k"
+output_folder_16k = "hz_2s_16k"
+output_folder_24k = "hz_2s_24k"
 log_file = "blank_segments_log.txt"
 
 # Ensure output folders exist

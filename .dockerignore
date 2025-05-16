@@ -1,0 +1,16 @@
+__pycache__
+athena_data
+baddies/
+data/
+docker_stuff/
+hz_10s_16k
+hz_16k_wav
+hz_midi
+soundsfonts/Yamaha_C5_Grand-v2.4.sf2
+soundfonts/Yamaha-Grand-Lite-v2.0.sf2
+*.bak
+bak_logs
+bak_results
+*.mid
+*.csv
+audiolm.code-workspace

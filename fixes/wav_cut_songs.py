@@ -12,7 +12,7 @@ os.makedirs(output_folder_16k, exist_ok=True)
 os.makedirs(output_folder_24k, exist_ok=True)
 
 # Target segment length in milliseconds
-segment_length_ms = 4000  # 4 seconds
+segment_length_ms = 2000  # 4 seconds
 
 # Process all audio files
 for file_name in tqdm(os.listdir(input_folder)): # tqdm creates a progress bar

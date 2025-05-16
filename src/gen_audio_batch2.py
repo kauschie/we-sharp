@@ -56,6 +56,13 @@ sem_path = "../p1_results/semantic.transformer.25000.pt"
 coarse_path = "../p1_results/coarse.transformer.29219.terminated_session.pt"
 fine_path = "../p1_results/fine.transformer.24245.terminated_session.pt"
 
+# monkey patch torch.load to always disable weights_only
+original_load = torch.load
+def patched_load(*args, **kwargs):
+    kwargs["weights_only"] = False
+    return original_load(*args, **kwargs)
+
+torch.load = patched_load
 
 
 # Initialize models

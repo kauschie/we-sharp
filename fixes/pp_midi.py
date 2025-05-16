@@ -236,12 +236,12 @@ def process_dir(input_dir, output_dir, completed_dir, baddies_dir, soundfont):
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
 
-    base = "./"
-    input_directory = os.path.join(base, "hz_midi")
-    output_directory = os.path.join(base, "hz_16k_wav")
-    completed_directory = os.path.join(base, "hz_processed_midi")
-    baddies_directory = os.path.join(base, "baddies")
+    base = "../"
+    input_directory = os.path.join(base, "test_input_midi")
+    output_directory = os.path.join(base, "test_output_wav")
+    completed_directory = os.path.join(base, "test_completed_midi")
+    baddies_directory = os.path.join(base, "test_baddies")
 
-    soundfont = "Timbres of Heaven (XGM) 4.00(G).sf2"
+    soundfont = "../soundfonts/Timbres of Heaven (XGM) 4.00(G).sf2"
 
     py_process_dir(input_directory, output_directory, completed_directory, baddies_directory, soundfont)

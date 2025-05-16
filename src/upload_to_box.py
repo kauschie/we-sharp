@@ -5,6 +5,7 @@ import box_functions
 
 # Constants
 DEFAULT_BOX_FOLDER_ID = '313442530842'  # Replace if needed (default: music folder from server.py)
+# requires api credentials in keypair.json
 
 def handle_path(path, folder_id, client):
     if os.path.isfile(path):

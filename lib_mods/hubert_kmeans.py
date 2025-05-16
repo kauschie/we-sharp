@@ -51,7 +51,7 @@ class HubertWithKmeans(nn.Module):
         if not use_mert:
             model_path = Path(checkpoint_path)
             assert model_path.exists(), f'path {checkpoint_path} does not exist'
-            checkpoint = torch.load(checkpoint_path)
+            checkpoint = torch.load(checkpoint_path, weights_only=False)
             load_model_input = {checkpoint_path: checkpoint}
             model, *_ = fairseq.checkpoint_utils.load_model_ensemble_and_task(load_model_input)
             self.model = model[0]
