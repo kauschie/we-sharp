@@ -1,7 +1,7 @@
 import os
 import argparse
 from boxsdk import Client, JWTAuth
-import box_functions
+import fixes.box_functions as box_functions
 
 # Constants
 DEFAULT_BOX_FOLDER_ID = '313442530842'  # Replace if needed (default: music folder from server.py)
@@ -20,7 +20,7 @@ def handle_path(path, folder_id, client):
                 try:
                     box_functions.upload_to_box(directory, file_name, folder_id, client)
                 except Exception as e:
-                    print(f"error uploading {filename}: {e}")
+                    print(f"error uploading {file_name}: {e}")
     else:
         print(f"Invalid path: {path}")
 
