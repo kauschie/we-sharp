@@ -1,0 +1,93 @@
+.fad-visualizer-area {
+    width: 100%;
+    height: 50%;
+
+    display: flex;
+    flex-direction: column;
+    gap: 50px;
+}
+
+.fad-visualizer-header {
+    height: 7vh;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 7vh;
+    font-family: "Sora", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-style: normal;
+    color: aliceblue;
+}
+
+.fad-visualizer-body {
+    aspect-ratio: 1.5 / 1;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.gauge-area {
+    height: 100%;
+    width: 80%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.fad-score {
+    position: absolute;
+    transform: translate(0px, 2vh);
+    font-size: 5vh;
+    font-family: "Sora", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-style: normal;
+    color: aliceblue;
+}
+
+
+.fad-visualizer-footer {
+    height: 25%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+}   
+
+.score-dot-area {
+    width: 60%;
+}
+
+.score-dot {
+    aspect-ratio: 1/1;
+    height: 15px;
+    border-radius: 50%;
+    background-color: lime;
+}
+
+.fad-score-bar {
+    background-color: rgba(0, 0, 0, 0.5);
+    height: 10px;
+    width: 60%;
+}
+
+.fad-score-bar-fill {
+    background-color: lime;
+    height: 100%;
+}
+
+.fad-category {
+    margin: 20px 0px;
+    font-size: 2vh;
+    font-family: "Sora", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-style: normal;
+    color: aliceblue;
+}
