@@ -43,21 +43,17 @@ def setup_logger(level=logging.INFO):
     return logger
 
 # Configure logging
-log_dir = './logs/sem'
+log_dir = '../p1_logs/sem'
 os.makedirs(log_dir, exist_ok=True)
 log_file_path = os.path.join(log_dir, 'semantic_training.log')
 logger = setup_logger()
 logger.info(f"Logger initiated, Semantic Trainer Program Running")
 
 # Paths to models and dataset
-hubert_checkpoint_path = './models/hubert_base_ls960.pt'
-hubert_kmeans_path = './models/hubert_base_ls960_L9_km500.bin'
-# dataset_path = "./p2-data/smallest_test_16khz"
-# dataset_path = "./p2-data/micro_test_16khz"
-# dataset_path = "/home/mkausch/dev/audiolm/p1_data/small"  # p1 20,000 songs
-# dataset_path = "/home/mkausch/dev/audiolm/p2-data/p2_4s_16k"  # p2 868,603 songs
-dataset_path = "/home/mkausch/dev/audiolm/hz_2s_16k"  # p2 136,809 songs
-results_folder = './results'  # Results directory
+hubert_checkpoint_path = '../models/hubert_base_ls960.pt'
+hubert_kmeans_path = '../models/hubert_base_ls960_L9_km500.bin'
+dataset_path = "../dataset_2s_16k"  # sample rate 16kHz
+results_folder = '../p1_results'  # Results directory
 
 # Initialize TensorBoard writer
 writer = SummaryWriter(logdir=log_dir)
@@ -76,7 +72,7 @@ logger.info(f"wav2vec.target_sample_hz: {wav2vec.target_sample_hz}")
 # Define and initialize the Semantic Transformer
 
 """
-Hyperparameters Taken from 
+Hyperparameters Taken from github repo discussion:
 
 The following are generated outputs from the Semantic Transformer with 12 layers, 
 16 attention heads, 
@@ -91,14 +87,14 @@ Trained on a single GPU for a few days.
 
 # temp_dim = 1024
 temp_dim = 1024
-temp_depth = 6
-temp_heads = 8
+temp_depth = 12
+temp_heads = 16
 semantic_transformer = SemanticTransformer(
     num_semantic_tokens=wav2vec.codebook_size,  # From HubertWithKmeans
     dim=temp_dim,  # 1024 Transformer dimensionality
     depth=temp_depth,  # Number of transformer layers
     heads=temp_heads,
-    #flash_attn=True,  # Use Flash Attention for efficiency
+    #flash_attn=True,  # Use Flash Attention for efficiency, must be enabled in generate audio script if enabled
 ).cuda()
 
 # Trainer for the Semantic Transformer
@@ -115,7 +111,7 @@ semantic_trainer = SemanticTransformerTrainer(
     wav2vec=wav2vec,  # HubertWithKmeans model
     folder=dataset_path,  
     force_clear_prev_results=False,
-    batch_size=120,  # Adjust based on GPU memory
+    batch_size=64,  # Adjust based on GPU memory
     grad_accum_every=4,  # Gradient accumulation steps
     data_max_length=temp_max_length,  # Max number of audio samples (16 kHz * 4 seconds)
     num_train_steps=training_max,  # Reduced number of training steps for timing experiment
@@ -195,7 +191,7 @@ def handle_exception(e, move_bad_file=None):
     cleanup_cuda()  # Cleanup CUDA memory
 
     if move_bad_file:
-        bad_dir = "p2-data/bad/"
+        bad_dir = "../baddies/"
         os.makedirs(bad_dir, exist_ok=True)  # Ensure the directory exists
         bad_file_path = os.path.join(bad_dir, os.path.basename(move_bad_file))
         shutil.move(move_bad_file, bad_file_path)

@@ -7,26 +7,16 @@ from audiolm_pytorch import EncodecWrapper
 import torch
 import torchaudio
 
-hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
-hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
+hubert_checkpoint_path = "../models/hubert_base_ls960.pt"
+hubert_kmeans_path = "../models/hubert_base_ls960_L9_km500.bin"
 
-sem_step = 51525
-coarse_step = 25070
-fine_step = 9000
+sem_step = 25000
+coarse_step = 29219
+fine_step = 24245
 
-sem_path = f"./results/semantic.transformer.{sem_step}.terminated_session.pt"
-coarse_path = f"./results/coarse.transformer.{coarse_step}.terminated_session.pt"
-fine_path = f"./results/fine.transformer.{fine_step}.pt"
-
-
-# sem_step = 25000
-# coarse_step = 29219
-# fine_step = 24245
-
-
-# sem_path = "./great/p1_results/semantic.transformer.25000.pt"
-# coarse_path = "./great/p1_results/coarse.transformer.29219.terminated_session.pt"
-# fine_path = "./great/p1_results/fine.transformer.24245.terminated_session.pt"
+sem_path = f"../p1_results/semantic.transformer.{sem_step}.pt"
+coarse_path = f"../p1_results/coarse.transformer.{coarse_step}.terminated_session.pt"
+fine_path = f"../p1_results/fine.transformer.{fine_step}.terminated_session.pt"
 
 # Define and initialize the Neural Audio Codec
 encodec = EncodecWrapper()
@@ -88,11 +78,9 @@ audiolm = AudioLM(
     unique_consecutive=uc,
 )
 
-import torch
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
-
 
 
 def main():
@@ -135,6 +123,7 @@ def main():
     # torchaudio.save(output_file, normalized_wave, sample_rate)
 
 
+    # # check number of parameters in model
     # Assuming you have instantiated the models:
     # print(f"Semantic Transformer Parameters: {count_parameters(semantic_transformer):,}")
     # print(f"Coarse Transformer Parameters: {count_parameters(coarse_transformer):,}")

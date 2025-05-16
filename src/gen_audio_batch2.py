@@ -48,20 +48,13 @@ from pathlib import Path
 import os
 
 # Model paths
-hubert_checkpoint_path = "./models/hubert_base_ls960.pt"
-hubert_kmeans_path = "./models/hubert_base_ls960_L9_km500.bin"
+hubert_checkpoint_path = "../models/hubert_base_ls960.pt"
+hubert_kmeans_path = "../models/hubert_base_ls960_L9_km500.bin"
 
-sem_step = 55000
-coarse_step = 108507
-fine_step = 136325
 
-# sem_path = f"./results/semantic.transformer.{sem_step}.pt"
-# coarse_path = f"./results/coarse.transformer.{coarse_step}.terminated_session.pt"
-# fine_path = f"./results/fine.transformer.{fine_step}.terminated_session.pt"
-
-sem_path = "./great/p1_results/semantic.transformer.25000.pt"
-coarse_path = "./great/p1_results/coarse.transformer.29219.terminated_session.pt"
-fine_path = "./great/p1_results/fine.transformer.24245.terminated_session.pt"
+sem_path = "../p1_results/semantic.transformer.25000.pt"
+coarse_path = "../p1_results/coarse.transformer.29219.terminated_session.pt"
+fine_path = "../p1_results/fine.transformer.24245.terminated_session.pt"
 
 
 
