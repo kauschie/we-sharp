@@ -1,0 +1,25 @@
+.options-area {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+
+  position: absolute;
+  top: 0;
+  right: 5px;
+  height: 50px;
+}
+
+.options-area button {
+    background-color: transparent;
+    aspect-ratio: 1 / 1;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    border: none;
+}

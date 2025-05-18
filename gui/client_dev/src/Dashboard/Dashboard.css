@@ -1,0 +1,137 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,100..900;1,100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Silkscreen:wght@400;700&display=swap');
+
+.dashboard-area {
+    position: absolute;
+    z-index: 3;
+    height: 100vh;
+    width: 100%;
+    /* blur and darken the background */
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(15px);
+
+}
+
+.dashboard-header {
+    width: 100%;
+    height: 75px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 30px;
+}
+
+.dashboard-header-left {
+    display: flex;
+}
+
+.dashboard-header-right {
+    display: flex;
+}
+
+.dashboard-header h2 {
+    font-family: "Sora", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-size: 1.5rem;
+    color: white;
+    margin: 50px;
+    cursor: pointer;
+}
+
+.dashboard-body {
+    width: 100%;
+    height: calc(100vh - 75px);
+    max-height: calc(100vh - 75px);
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.dashboard-wrapper {
+    width: 80%;
+    max-width: 1750px;
+    height: 100%;
+    display: flex;
+}
+
+.dashboard-left {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.dashboard-right {
+    width: 100%;
+    height: 100%;
+}
+
+.fad-menu-area {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.fad-chart-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    width: 100%;
+    height: 50%;
+}
+
+.generation-time-chart {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    width: 100%;
+    height: 50%;
+}
+
+.user-rating-area {
+    width: 100%;
+    height: 0%;
+}
+
+.avg-rating-area {
+    width: 100%;
+    height: 0%;
+}
+
+/* CSS for the headers */
+.dashboard-headers {
+    width: 100%;
+    height: 40px;
+    display: flex;
+    align-items: center;
+
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.dashboard-headers h3 {
+    font-family: "Sora", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-size: 1.5rem;
+    color: white;
+    margin-left: 20px;
+}
+
+.chart-container {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chart-area {
+    width: 100%;
+    height: 80%;
+}

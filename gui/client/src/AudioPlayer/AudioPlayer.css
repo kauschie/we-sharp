@@ -1,0 +1,136 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,100..900;1,100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Silkscreen:wght@400;700&display=swap');
+
+.audio-player {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: transparent;
+    border-radius: 5px;
+    width: 100%;
+    max-width: 400px;
+}
+  
+.play-pause-btn {
+    background-color: transparent;
+    color: white;
+    border: none;
+    min-width: 40px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+
+.play-pause-btn img {
+    width: 100%;
+}
+
+/* Slider Container */
+.slider-container {
+    position: relative;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+  
+/* Slider with Fill Effect */
+.slider {
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #ccc;
+    height: 5px;
+    border-radius: 5px;
+    outline: none;
+    cursor: pointer;
+}
+  
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    background: #007bff;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+  
+.slider::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+    background: #007bff;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+  
+.time-display {
+    font-family: "Sora", sans-serif;
+    font-style: normal;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Volume Icon */
+.volume-toggle-btn {
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    min-height: 40px;
+}
+  
+.volume-toggle-btn:focus {
+    outline: none;
+}
+
+.volume-icon {
+    width: 70%;
+}
+  
+/* Volume Control */
+.volume-control {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+  
+.volume-slider {
+    width: 50px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #ccc;
+    height: 5px;
+    border-radius: 5px;
+    outline: none;
+    cursor: pointer;
+}
+  
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    background: #007bff;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+  
+.volume-slider::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+    background: #007bff;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+  

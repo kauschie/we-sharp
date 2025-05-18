@@ -1,0 +1,76 @@
+# =========================
+# Global rules
+# =========================
+# macOS system files
+.DS_Store
+
+# Logs
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+
+# =========================
+# audio/ directory rules
+# =========================
+# Ignore all files inside audio/uploaded and audio/generated
+# but keep the directory structure itself
+/audio/uploaded/*
+!/audio/uploaded/.gitkeep
+
+/audio/generated/*
+!/audio/generated/.gitkeep
+
+# =========================
+# client/ (React app) rules
+# =========================
+# Ignore node_modules and build artifacts
+/client/node_modules/
+/client/dist/
+/client/.vite/
+/client/.next/
+/client/build/
+
+/client/.env
+/client/.DS_Store
+/client/.cache
+
+/client/deploy.sh
+/client/server.crt
+/client/server.key
+/client/server.csr
+
+# Allow any public audio files
+!/client/public/sounds/**
+
+# =========================
+# scripts/ directory rules
+# =========================
+# Ignore all files except the two Python scripts you want
+/scripts/*
+!/scripts/fad.py
+
+# =========================
+# server/ (Express app) rules
+# =========================
+# Ignore all folders inside server/
+server/*/
+
+server/server,js
+
+# Ignore all symbolic links inside server/
+# (Git doesn’t track symlinks differently, so this ensures only specific files are allowed)
+server/*
+
+# Whitelist specific files to keep
+!server/we-sharp_server.js
+!server/package.json
+!server/package-lock.json
+
+# Also ignore PEM and env files
+server/*.pem
+server/.env
+
+# Always ignore node_modules
+server/node_modules/

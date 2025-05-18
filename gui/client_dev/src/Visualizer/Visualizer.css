@@ -1,0 +1,14 @@
+.equalizer-canvas {
+    /* Style */
+    margin: 0;
+    padding: 0;
+    /* Sizing */
+    height: 100%;
+    aspect-ratio: 1 / 1;
+    box-sizing: border-box;
+}
+
+.waveform-canvas {
+    height: 100%;
+    width: 50%;
+}
