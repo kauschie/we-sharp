@@ -1,4 +1,4 @@
-name: audiolm_env
+name: wesharp_env
 channels:
   - defaults
   - conda-forge
